@@ -54,3 +54,9 @@ At this early stage, there is no runnable code yet. Once the first implementatio
 
    # TODO: add setup steps when implementation is ready
    ```
+
+# Community Channel Invite
+
+Please join SIDAN Lab's discord server for regular update using https://discord.gg/prJvB6b6p4.
+
+Please view SIDAN Lab's dedicated channel for any SIDAN - Delegator Feedback System for DRep Voting Update in https://discord.com/channels/1166784293805228061/1441817121909903370.
