@@ -15,10 +15,11 @@ export interface KoiosProposal {
   proposal_index: number; // Maps to Proposal.certIndex
   proposal_type: string; // Maps to Proposal.governanceActionType
   proposed_epoch: number; // Maps to Proposal.submissionEpoch
-  ratified_epoch?: number | null; // Used to derive status
-  enacted_epoch?: number | null; // Used to derive status
-  dropped_epoch?: number | null; // Used to derive status
-  expired_epoch?: number | null; // Maps to Proposal.expiryEpoch, used to derive status
+  ratified_epoch?: number | null; // Maps to Proposal.ratifiedEpoch
+  enacted_epoch?: number | null; // Maps to Proposal.enactedEpoch
+  dropped_epoch?: number | null; // Maps to Proposal.droppedEpoch
+  expired_epoch?: number | null; // Maps to Proposal.expiredEpoch
+  expiration?: number | null; // Maps to Proposal.expirationEpoch (epoch when voting ends)
   meta_url?: string | null; // Fallback for metadata fetch
   meta_hash?: string | null;
   meta_json?: {

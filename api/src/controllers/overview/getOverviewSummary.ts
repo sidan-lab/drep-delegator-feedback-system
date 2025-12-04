@@ -24,9 +24,9 @@ export const getOverviewSummary = async (_req: Request, res: Response) => {
       totalProposals,
       activeProposals: counts[ProposalStatus.ACTIVE] ?? 0,
       ratifiedProposals: counts[ProposalStatus.RATIFIED] ?? 0,
+      enactedProposals: counts[ProposalStatus.ENACTED] ?? 0,
       expiredProposals: counts[ProposalStatus.EXPIRED] ?? 0,
-      approvedProposals: counts[ProposalStatus.APPROVED] ?? 0,
-      notApprovedProposals: counts[ProposalStatus.NOT_APPROVED] ?? 0,
+      closedProposals: counts[ProposalStatus.CLOSED] ?? 0,
     };
 
     const response: GetNCLDataResponse = {

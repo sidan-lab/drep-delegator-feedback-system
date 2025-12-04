@@ -36,9 +36,10 @@ model Drep { // get drep list from https://api.koios.rest/api/v1/drep_list
   id              String        @id @default(uuid())
   drepId          String        @unique // drep_id value from drep_info api response (CIP-129 format)
   userId          String?       @unique
-  name            String?       // meta_json.body.givenName from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id> 
+  name            String?       // meta_json.body.givenName from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
   paymentAddress  String?       // meta_json.body.paymentAddress from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
   iconUrl        String?       // meta_json.body.image.contentUrl from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
+  doNotList      Boolean?      // meta_json.body.doNotList from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
   votingPower     Float   // get from https://api.koios.rest/api/v1/drep_voting_power_history?_epoch_no=320&_drep_id=drep17l6sywnwqu9aedd6aumev42w39ln5zfl9nw7j4ak6u8swyrwvz3 from amount value in response
   createdAt       DateTime?     @default(now())
   updatedAt       DateTime?     @updatedAt
@@ -99,11 +100,11 @@ enum GovernanceType {
 }
 
 enum ProposalStatus {
-  ACTIVE
-  RATIFIED
-  EXPIRED
-  APPROVED
-  NOT_APPROVED
+  ACTIVE    // Governance action submitted onchain and voting is ongoing
+  RATIFIED  // Passed voting, waiting for enactment
+  ENACTED   // Enacted/applied to the chain
+  EXPIRED   // Voting period ended without ratification/approval
+  CLOSED    // Expired INFO action (only applicable to INFO governance action type - they don't get ratified/enacted)
 }
 
 // Ingestion Types
@@ -122,10 +123,14 @@ model Proposal { // get proposals from https://api.koios.rest/api/v1/proposal_li
   title                String  // meta_json.body.title value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.title value
   description          String?  // meta_json.body.abstract value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.abstract value
   rationale            String?  // meta_json.body.rationale value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.rationale value
-  governanceActionType GovernanceType?  // proposal_type value from proposal_list api response 
-  status               ProposalStatus  @default(ACTIVE) // look at ratified_epoch, expired_epoch, enacted_epoch and dropped_epoch value from proposal_list api response and compare with current epoch to get status
+  governanceActionType GovernanceType?  // proposal_type value from proposal_list api response
+  status               ProposalStatus  @default(ACTIVE) // derived from epoch fields below
   submissionEpoch      Int?  // proposed_epoch value from proposal_list api response
-  expiryEpoch          Int?  // expired_epoch value from proposal_list api response
+  ratifiedEpoch        Int?  // ratified_epoch value from proposal_list api response (can be null)
+  enactedEpoch         Int?  // enacted_epoch value from proposal_list api response (can be null)
+  droppedEpoch         Int?  // dropped_epoch value from proposal_list api response (can be null)
+  expiredEpoch         Int?  // expired_epoch value from proposal_list api response (can be null)
+  expirationEpoch      Int?  // expiration value from proposal_list api response (the epoch when voting ends)
   metadata             String?  // meta_json value from proposal_list api response, if not there, go to meta_url from proposal_list api response and use the response body as metadata
   createdAt            DateTime?       @default(now())
   updatedAt            DateTime?       @updatedAt

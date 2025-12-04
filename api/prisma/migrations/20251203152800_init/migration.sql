@@ -8,7 +8,7 @@ CREATE TYPE "VoterType" AS ENUM ('DREP', 'SPO', 'CC');
 CREATE TYPE "GovernanceType" AS ENUM ('INFO', 'TREASURY', 'CONSTITUTION', 'HARD_FORK', 'PROTOCOL_PARAMETER_CHANGE', 'NO_CONFIDENCE', 'UPDATE_COMMITTEE');
 
 -- CreateEnum
-CREATE TYPE "ProposalStatus" AS ENUM ('ACTIVE', 'RATIFIED', 'EXPIRED', 'APPROVED', 'NOT_APPROVED');
+CREATE TYPE "ProposalStatus" AS ENUM ('ACTIVE', 'RATIFIED', 'ENACTED', 'EXPIRED', 'CLOSED');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -30,6 +30,7 @@ CREATE TABLE "Drep" (
     "name" TEXT,
     "paymentAddress" TEXT,
     "iconUrl" TEXT,
+    "doNotList" BOOLEAN,
     "votingPower" DOUBLE PRECISION NOT NULL,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3),
@@ -86,7 +87,11 @@ CREATE TABLE "Proposal" (
     "governanceActionType" "GovernanceType",
     "status" "ProposalStatus" NOT NULL DEFAULT 'ACTIVE',
     "submissionEpoch" INTEGER,
-    "expiryEpoch" INTEGER,
+    "ratifiedEpoch" INTEGER,
+    "enactedEpoch" INTEGER,
+    "droppedEpoch" INTEGER,
+    "expiredEpoch" INTEGER,
+    "expirationEpoch" INTEGER,
     "metadata" TEXT,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3),

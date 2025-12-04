@@ -3,7 +3,7 @@ export interface GovernanceAction {
   txHash: string;
   title: string;
   type: string;
-  status: "Active" | "Ratified" | "Expired" | "Approved" | "Not approved";
+  status: "Active" | "Ratified" | "Enacted" | "Expired" | "Closed";
   constitutionality: string;
   drep: GovernanceActionVoteInfo;
   spo?: GovernanceActionVoteInfo;
@@ -52,7 +52,15 @@ export interface GovernanceActionDetail extends GovernanceAction {
   ccVotes?: VoteRecord[];
 }
 
-export type GovernanceActionType = "All" | "Info" | "Treasury" | "Constitution";
+export type GovernanceActionType =
+  | "All"
+  | "Info"
+  | "Treasury"
+  | "Constitution"
+  | "Hard Fork"
+  | "Protocol Parameter Change"
+  | "No Confidence"
+  | "Update Committee";
 export type VoteType = "All" | "Yes" | "No" | "Abstain";
 
 export interface NCLData {
@@ -65,7 +73,7 @@ export interface ProposalSummary {
   totalProposals: number;
   activeProposals: number;
   ratifiedProposals: number;
+  enactedProposals: number;
   expiredProposals: number;
-  approvedProposals: number;
-  notApprovedProposals: number;
+  closedProposals: number;  // Only for INFO governance actions
 }

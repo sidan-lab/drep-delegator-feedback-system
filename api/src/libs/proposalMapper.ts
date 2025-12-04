@@ -30,6 +30,7 @@ export type ProposalWithVotes = PrismaProposal & {
 
 export const proposalWithVotesSelect = {
   id: true,
+  proposalId: true,
   txHash: true,
   certIndex: true,
   title: true,
@@ -38,8 +39,14 @@ export const proposalWithVotesSelect = {
   governanceActionType: true,
   status: true,
   submissionEpoch: true,
-  expiryEpoch: true,
+  ratifiedEpoch: true,
+  enactedEpoch: true,
+  droppedEpoch: true,
+  expiredEpoch: true,
+  expirationEpoch: true,
   metadata: true,
+  createdAt: true,
+  updatedAt: true,
   onchainVotes: {
     include: {
       drep: true,
@@ -61,9 +68,9 @@ interface CountTally extends AdaTally {}
 const statusLabelMap: Record<ProposalStatus, GovernanceAction["status"]> = {
   ACTIVE: "Active",
   RATIFIED: "Ratified",
+  ENACTED: "Enacted",
   EXPIRED: "Expired",
-  APPROVED: "Approved",
-  NOT_APPROVED: "Not approved",
+  CLOSED: "Closed",
 };
 
 const toTitleCase = (value: string) =>
@@ -202,7 +209,8 @@ const resolveVoterId = (vote: VoteWithRelations): string => {
 
 const resolveVoterName = (vote: VoteWithRelations): string | undefined => {
   if (vote.voterType === VoterType.DREP) {
-    return vote.drep?.paymentAddress ?? undefined;
+    // Prefer the DRep's display name, falling back to their payment address if available
+    return vote.drep?.name ?? vote.drep?.paymentAddress ?? undefined;
   }
 
   if (vote.voterType === VoterType.SPO) {
@@ -342,7 +350,7 @@ export const mapProposalToGovernanceAction = (
     totalNo: voteAggregation.totals.no,
     totalAbstain: voteAggregation.totals.abstain,
     submissionEpoch: proposal.submissionEpoch ?? 0,
-    expiryEpoch: proposal.expiryEpoch ?? 0,
+    expiryEpoch: proposal.expirationEpoch ?? 0,
   };
 };
 

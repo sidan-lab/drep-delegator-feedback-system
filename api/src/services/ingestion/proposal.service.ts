@@ -102,7 +102,11 @@ async function ingestProposalData(
         governanceActionType,
         status,
         submissionEpoch: koiosProposal.proposed_epoch,
-        expiryEpoch: koiosProposal.expired_epoch,
+        ratifiedEpoch: koiosProposal.ratified_epoch,
+        enactedEpoch: koiosProposal.enacted_epoch,
+        droppedEpoch: koiosProposal.dropped_epoch,
+        expiredEpoch: koiosProposal.expired_epoch,
+        expirationEpoch: koiosProposal.expiration,
         metadata,
       },
       update: {
@@ -110,7 +114,11 @@ async function ingestProposalData(
         status,
         // Backfill governanceActionType when we have a valid mapping
         ...(governanceActionType !== null && { governanceActionType }),
-        expiryEpoch: koiosProposal.expired_epoch,
+        ratifiedEpoch: koiosProposal.ratified_epoch,
+        enactedEpoch: koiosProposal.enacted_epoch,
+        droppedEpoch: koiosProposal.dropped_epoch,
+        expiredEpoch: koiosProposal.expired_epoch,
+        expirationEpoch: koiosProposal.expiration,
         metadata,
       },
     });
@@ -337,29 +345,40 @@ async function getCurrentEpoch(): Promise<number> {
 /**
  * Derives proposal status from epoch fields
  * Based on: ratified_epoch, expired_epoch, enacted_epoch, dropped_epoch vs current epoch
+ *
+ * Status flow:
+ * - ACTIVE: Voting is ongoing
+ * - RATIFIED: Passed voting, waiting for enactment (non-INFO actions)
+ * - ENACTED: Applied to the chain (non-INFO actions)
+ * - EXPIRED: Voting period ended without ratification/approval (non-INFO actions)
+ * - CLOSED: Expired INFO action (INFO actions don't get ratified/enacted)
  */
 function deriveProposalStatus(
   proposal: KoiosProposal,
   currentEpoch: number
 ): ProposalStatus {
-  // If ratified, return RATIFIED
+  const isInfoAction = proposal.proposal_type === "InfoAction";
+
+  // If enacted (applied to chain), return ENACTED
+  if (proposal.enacted_epoch && proposal.enacted_epoch <= currentEpoch) {
+    return ProposalStatus.ENACTED;
+  }
+
+  // If ratified but not yet enacted
   if (proposal.ratified_epoch && proposal.ratified_epoch <= currentEpoch) {
     return ProposalStatus.RATIFIED;
   }
 
-  // If enacted (approved and executed), return APPROVED
-  if (proposal.enacted_epoch && proposal.enacted_epoch <= currentEpoch) {
-    return ProposalStatus.APPROVED;
-  }
-
-  // If dropped (not approved), return NOT_APPROVED
-  if (proposal.dropped_epoch && proposal.dropped_epoch <= currentEpoch) {
-    return ProposalStatus.NOT_APPROVED;
-  }
-
-  // If expired, return EXPIRED
+  // If expired
   if (proposal.expired_epoch && proposal.expired_epoch <= currentEpoch) {
-    return ProposalStatus.EXPIRED;
+    // INFO actions use CLOSED status when expired
+    return isInfoAction ? ProposalStatus.CLOSED : ProposalStatus.EXPIRED;
+  }
+
+  // If dropped
+  if (proposal.dropped_epoch && proposal.dropped_epoch <= currentEpoch) {
+    // INFO actions use CLOSED status when dropped
+    return isInfoAction ? ProposalStatus.CLOSED : ProposalStatus.EXPIRED;
   }
 
   // Otherwise, still ACTIVE
