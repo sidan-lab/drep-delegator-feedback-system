@@ -54,10 +54,10 @@ export interface GovernanceActionDetail extends GovernanceAction {
 
 export type GovernanceActionType =
   | "All"
-  | "Info"
-  | "Treasury"
-  | "Constitution"
-  | "Hard Fork"
+  | "Info Action"
+  | "Treasury Withdrawals"
+  | "New Constitution"
+  | "Hard Fork Initiation"
   | "Protocol Parameter Change"
   | "No Confidence"
   | "Update Committee";
@@ -75,5 +75,5 @@ export interface ProposalSummary {
   ratifiedProposals: number;
   enactedProposals: number;
   expiredProposals: number;
-  closedProposals: number;  // Only for INFO governance actions
+  closedProposals: number; // Only for INFO governance actions
 }
