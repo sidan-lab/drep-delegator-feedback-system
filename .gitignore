@@ -1,0 +1,10 @@
+/node_modules
+/.build
+/.husky
+
+# dotenv
+.env*
+!.env.example
+
+# AI
+.claude
