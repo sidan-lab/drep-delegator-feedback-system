@@ -20,12 +20,12 @@ function getStatusColor(status: GovernanceAction["status"]): string {
     case "Active":
       return "bg-success/20 text-success border-success/30";
     case "Ratified":
-    case "Approved":
       return "bg-primary/20 text-primary border-primary/30";
+    case "Enacted":
+      return "bg-blue-500/20 text-blue-500 border-blue-500/30";
     case "Expired":
+    case "Closed":
       return "bg-muted text-muted-foreground border-border";
-    case "Not approved":
-      return "bg-destructive/20 text-destructive border-destructive/30";
     default:
       return "bg-muted text-muted-foreground border-border";
   }

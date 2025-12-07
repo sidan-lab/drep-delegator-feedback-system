@@ -9,6 +9,15 @@
  * Proposal from Koios API
  * Endpoint: GET /proposal_list
  */
+/**
+ * Treasury withdrawal entry in a proposal
+ * For TreasuryWithdrawals proposals - single object with amount and stake_address
+ */
+export interface KoiosTreasuryWithdrawal {
+  stake_address: string; // Recipient stake address
+  amount: string; // Amount in lovelace
+}
+
 export interface KoiosProposal {
   proposal_id: string; // Maps to Proposal.proposalId
   proposal_tx_hash: string; // Maps to Proposal.txHash
@@ -30,6 +39,9 @@ export interface KoiosProposal {
     };
   } | null;
   block_time?: number;
+  // Treasury withdrawal specific field (only for TreasuryWithdrawals proposals)
+  // Single object with amount and stake_address
+  withdrawal?: KoiosTreasuryWithdrawal | null;
 }
 
 /**
@@ -151,4 +163,65 @@ export interface KoiosError {
   error: string;
   message?: string;
   status_code?: number;
+}
+
+/**
+ * Proposal Voting Summary from Koios API
+ * Endpoint: GET /proposal_voting_summary
+ */
+export interface KoiosProposalVotingSummary {
+  proposal_id: string;
+  // DRep voting power
+  drep_active_yes_vote_power: string | null;
+  drep_active_no_vote_power: string | null;
+  drep_active_abstain_vote_power: string | null;
+  drep_always_abstain_vote_power: string | null;
+  drep_always_no_confidence_vote_power: string | null;
+  // SPO/Pool voting power (Koios uses "pool_" prefix)
+  pool_active_yes_vote_power: string | null;
+  pool_active_no_vote_power: string | null;
+  pool_active_abstain_vote_power: string | null;
+  pool_passive_always_abstain_vote_power: string | null;
+  pool_passive_always_no_confidence_vote_power: string | null;
+  // CC votes
+  cc_yes_vote: number | null;
+  cc_no_vote: number | null;
+  cc_abstain_vote: number | null;
+}
+
+/**
+ * DRep Epoch Summary from Koios API
+ * Endpoint: GET /drep_epoch_summary
+ */
+export interface KoiosDrepEpochSummary {
+  epoch_no: number;
+  amount: string; // Total DRep voting power for the epoch
+}
+
+/**
+ * DRep List Entry from Koios API
+ * Endpoint: GET /drep_list
+ */
+export interface KoiosDrepListEntry {
+  drep_id: string;
+  hex: string;
+  has_script: boolean;
+  registered: boolean;
+}
+
+/**
+ * DRep Info from Koios API (POST version with detailed info)
+ * Endpoint: POST /drep_info
+ */
+export interface KoiosDrepInfo {
+  drep_id: string;
+  hex?: string;
+  has_script?: boolean;
+  registered?: boolean;
+  deposit?: string | null;
+  active?: boolean;
+  expires_epoch_no?: number | null;
+  amount?: string; // Voting power in lovelace
+  meta_url?: string | null;
+  meta_hash?: string | null;
 }

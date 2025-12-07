@@ -5,7 +5,6 @@
 
 import type { Prisma } from "@prisma/client";
 import { koiosGet, koiosPost } from "../koios";
-import { lovelaceToAda } from "./utils";
 import type {
   KoiosDrep,
   KoiosDrepVotingPower,
@@ -145,9 +144,9 @@ export async function ensureVoterExists(
 
 // Cache for API responses to avoid duplicate calls within a transaction
 const drepInfoCache = new Map<string, KoiosDrep | undefined>();
-const drepVotingPowerCache = new Map<string, number>();
+const drepVotingPowerCache = new Map<string, bigint>();
 const spoInfoCache = new Map<string, KoiosSpo | undefined>();
-const spoVotingPowerCache = new Map<string, number>();
+const spoVotingPowerCache = new Map<string, bigint>();
 
 /**
  * Ensures a DRep exists, creating if needed and updating voting power
@@ -190,7 +189,8 @@ async function ensureDrepExists(
       }
     );
     const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
-    votingPower = lovelaceToAda(votingPowerLovelace) || 0;
+    // Store voting power in lovelace as BigInt (1 ADA = 1,000,000 lovelace)
+    votingPower = votingPowerLovelace ? BigInt(votingPowerLovelace) : BigInt(0);
     drepVotingPowerCache.set(cacheKey, votingPower);
   }
 
@@ -304,7 +304,8 @@ async function ensureSpoExists(
       }
     );
     const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
-    votingPower = lovelaceToAda(votingPowerLovelace) || 0;
+    // Store voting power in lovelace as BigInt (1 ADA = 1,000,000 lovelace)
+    votingPower = votingPowerLovelace ? BigInt(votingPowerLovelace) : BigInt(0);
     spoVotingPowerCache.set(cacheKey, votingPower);
   }
 

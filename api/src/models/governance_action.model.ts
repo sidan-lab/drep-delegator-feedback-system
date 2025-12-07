@@ -1,6 +1,6 @@
 export interface GovernanceAction {
   proposalId: string;
-  txHash: string;
+  hash: string; // txHash:certIndex format
   title: string;
   type: string;
   status: "Active" | "Ratified" | "Enacted" | "Expired" | "Closed";
@@ -19,9 +19,9 @@ export interface GovernanceActionVoteInfo {
   yesPercent: number;
   noPercent: number;
   abstainPercent: number;
-  yesAda: string;
-  noAda: string;
-  abstainAda: string;
+  yesLovelace: string; // Voting power in lovelace (string for BigInt serialization)
+  noLovelace: string;
+  abstainLovelace: string;
 }
 
 export interface CCGovernanceActionVoteInfo {
@@ -38,8 +38,7 @@ export interface VoteRecord {
   voterId: string;
   voterName?: string;
   vote: "Yes" | "No" | "Abstain";
-  votingPower?: string;
-  votingPowerAda?: number;
+  votingPower?: string; // Voting power in lovelace (string for BigInt serialization)
   anchorUrl?: string;
   anchorHash?: string;
   votedAt: string;
@@ -65,8 +64,8 @@ export type VoteType = "All" | "Yes" | "No" | "Abstain";
 
 export interface NCLData {
   year: number;
-  currentValue: number;
-  targetValue: number;
+  currentValue: string; // In lovelace (string for BigInt serialization)
+  targetValue: string;  // In lovelace (string for BigInt serialization)
 }
 
 export interface ProposalSummary {

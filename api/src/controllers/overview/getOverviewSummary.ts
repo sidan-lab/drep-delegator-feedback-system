@@ -7,11 +7,16 @@ type StatusCountMap = Partial<Record<ProposalStatus, number>>;
 
 export const getOverviewSummary = async (_req: Request, res: Response) => {
   try {
-    const [totalProposals, grouped] = await Promise.all([
+    const currentYear = new Date().getUTCFullYear();
+
+    const [totalProposals, grouped, nclData] = await Promise.all([
       prisma.proposal.count(),
       prisma.proposal.groupBy({
         by: ["status"],
         _count: { status: true },
+      }),
+      prisma.nCL.findUnique({
+        where: { year: currentYear },
       }),
     ]);
 
@@ -30,9 +35,11 @@ export const getOverviewSummary = async (_req: Request, res: Response) => {
     };
 
     const response: GetNCLDataResponse = {
-      year: new Date().getUTCFullYear(),
-      currentValue: summary.activeProposals,
-      targetValue: summary.totalProposals,
+      year: currentYear,
+      // NCL data: currentValue is treasury withdrawals so far, targetValue is the limit
+      // Values are stored in lovelace (BigInt), convert to string for API response
+      currentValue: (nclData?.current ?? BigInt(0)).toString(),
+      targetValue: (nclData?.limit ?? BigInt(0)).toString(),
       ...summary,
     };
 

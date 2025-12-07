@@ -37,17 +37,17 @@
  *       type: object
  *       properties:
  *         year:
- *           type: string
+ *           type: number
  *           description: Year of the NCL data
- *           example: "2024"
+ *           example: 2024
  *         currentValue:
  *           type: string
- *           description: Current NCL value
- *           example: "1234.56"
+ *           description: Current treasury withdrawals in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "1234560000"
  *         targetValue:
  *           type: string
- *           description: Target NCL value
- *           example: "5000.00"
+ *           description: Net change limit in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "5000000000"
  *     GetProposalListReponse:
  *       type: array
  *       items:
@@ -180,12 +180,8 @@
  *                 example: "Yes"
  *               votingPower:
  *                 type: string
- *                 description: Voting power
- *                 example: "1000000"
- *               votingPowerAda:
- *                 type: number
- *                 description: Voting power in ADA
- *                 example: 1000000
+ *                 description: Voting power in lovelace (1 ADA = 1,000,000 lovelace)
+ *                 example: "1000000000000"
  *               anchorUrl:
  *                 type: string
  *                 description: Anchor URL for vote metadata
@@ -224,12 +220,8 @@
  *                 example: "Yes"
  *               votingPower:
  *                 type: string
- *                 description: Voting power
- *                 example: "1"
- *               votingPowerAda:
- *                 type: number
- *                 description: Voting power in ADA
- *                 example: 1
+ *                 description: Voting power in lovelace (1 ADA = 1,000,000 lovelace). CC members may not have voting power.
+ *                 example: "1000000"
  *               anchorUrl:
  *                 type: string
  *                 description: Anchor URL for vote metadata

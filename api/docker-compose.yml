@@ -11,7 +11,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-3001}:${PORT:-3001}"
     environment:
       # Override DATABASE_URL to connect to host machine's database
       DATABASE_URL: postgresql://postgres@host.docker.internal:5432/drep-delegator-feedback-db

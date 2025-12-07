@@ -44,6 +44,21 @@ export const proposalWithVotesSelect = {
   droppedEpoch: true,
   expiredEpoch: true,
   expirationEpoch: true,
+  // DRep voting power fields
+  drepTotalVotePower: true,
+  drepActiveYesVotePower: true,
+  drepActiveNoVotePower: true,
+  drepActiveAbstainVotePower: true,
+  drepAlwaysAbstainVotePower: true,
+  drepAlwaysNoConfidenceVotePower: true,
+  drepInactiveVotePower: true,
+  // SPO voting power fields
+  spoTotalVotePower: true,
+  spoActiveYesVotePower: true,
+  spoActiveNoVotePower: true,
+  spoActiveAbstainVotePower: true,
+  spoAlwaysAbstainVotePower: true,
+  spoAlwaysNoConfidenceVotePower: true,
   metadata: true,
   createdAt: true,
   updatedAt: true,
@@ -73,18 +88,24 @@ const statusLabelMap: Record<ProposalStatus, GovernanceAction["status"]> = {
   CLOSED: "Closed",
 };
 
-const toTitleCase = (value: string) =>
-  value
-    .toLowerCase()
-    .split(" ")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
+/**
+ * Maps database GovernanceType enum to full display labels
+ */
+const governanceTypeLabelMap: Record<GovernanceType, string> = {
+  INFO_ACTION: "Info Action",
+  TREASURY_WITHDRAWALS: "Treasury Withdrawals",
+  NEW_CONSTITUTION: "New Constitution",
+  HARD_FORK_INITIATION: "Hard Fork Initiation",
+  PROTOCOL_PARAMETER_CHANGE: "Protocol Parameter Change",
+  NO_CONFIDENCE: "No Confidence",
+  UPDATE_COMMITTEE: "Update Committee",
+};
 
-const formatGovernanceType = (type?: GovernanceType | null) => {
+const formatGovernanceType = (type?: GovernanceType | null): string => {
   if (!type) {
     return "Unknown";
   }
-  return toTitleCase(type.replace(/_/g, " "));
+  return governanceTypeLabelMap[type] ?? "Unknown";
 };
 
 const formatStatus = (status: ProposalStatus) =>
@@ -93,24 +114,24 @@ const formatStatus = (status: ProposalStatus) =>
 const percent = (value: number, total: number) =>
   total === 0 ? 0 : Number(((value / total) * 100).toFixed(2));
 
-const getAdaValue = (vote: VoteWithRelations) => {
-  if (typeof vote.votingPowerAda === "number" && !Number.isNaN(vote.votingPowerAda)) {
-    return vote.votingPowerAda;
+/**
+ * Gets voting power in lovelace from a vote (BigInt stored, returned as number for tallying)
+ */
+const getLovelaceValue = (vote: VoteWithRelations): number => {
+  if (vote.votingPower !== null && vote.votingPower !== undefined) {
+    return Number(vote.votingPower);
   }
-
-  if (vote.votingPower) {
-    const parsed = Number(vote.votingPower);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
   return 0;
 };
 
-const tallyAdaVotes = (votes: VoteWithRelations[]): AdaTally => {
+/**
+ * Tallies voting power in lovelace for each vote type
+ */
+const tallyLovelaceVotes = (votes: VoteWithRelations[]): AdaTally => {
   const totals: AdaTally = { yes: 0, no: 0, abstain: 0, total: 0 };
 
   for (const vote of votes) {
-    const power = getAdaValue(vote);
+    const power = getLovelaceValue(vote);
     if (vote.vote === VoteType.YES) {
       totals.yes += power;
     } else if (vote.vote === VoteType.NO) {
@@ -152,13 +173,122 @@ const combineCountTallies = (...counts: CountTally[]): CountTally =>
     { yes: 0, no: 0, abstain: 0, total: 0 }
   );
 
+/**
+ * Helper to safely convert BigInt or number to number for calculations
+ * Accepts both types for compatibility during schema migration
+ */
+const toNumber = (value: bigint | number | null | undefined): number => {
+  if (value === null || value === undefined) return 0;
+  return Number(value);
+};
+
+/**
+ * Calculate DRep vote info using the new formula:
+ * - Not Voted = Total - Yes - No - Abstain - AlwaysAbstain - AlwaysNoConfidence - Inactive
+ * - Yes % = Yes / (Yes + No + AlwaysNoConfidence + NotVoted)
+ * - No % = (No + AlwaysNoConfidence + NotVoted) / (Yes + No + AlwaysNoConfidence + NotVoted)
+ *
+ * All values from proposal are stored in lovelace (BigInt), returned as lovelace strings
+ */
+const buildDrepVoteInfo = (
+  proposal: ProposalWithVotes
+): GovernanceActionVoteInfo => {
+  // Convert to number for calculations (values are in lovelace)
+  const total = toNumber(proposal.drepTotalVotePower);
+  const yes = toNumber(proposal.drepActiveYesVotePower);
+  const no = toNumber(proposal.drepActiveNoVotePower);
+  const abstain = toNumber(proposal.drepActiveAbstainVotePower);
+  const alwaysAbstain = toNumber(proposal.drepAlwaysAbstainVotePower);
+  const alwaysNoConfidence = toNumber(proposal.drepAlwaysNoConfidenceVotePower);
+  const inactive = toNumber(proposal.drepInactiveVotePower);
+
+  // Calculate "Not Voted" power
+  const notVoted =
+    total - yes - no - abstain - alwaysAbstain - alwaysNoConfidence - inactive;
+
+  // Denominator for percentage calculation (excludes abstain and inactive)
+  const denominator = yes + no + alwaysNoConfidence + Math.max(0, notVoted);
+
+  // Calculate percentages
+  const yesPercent = denominator > 0 ? (yes / denominator) * 100 : 0;
+  const noPercent =
+    denominator > 0
+      ? ((no + alwaysNoConfidence + Math.max(0, notVoted)) / denominator) * 100
+      : 0;
+  const abstainPercent =
+    total > 0 ? ((abstain + alwaysAbstain) / total) * 100 : 0;
+
+  // Return lovelace values as strings
+  return {
+    yesPercent: Number(yesPercent.toFixed(2)),
+    noPercent: Number(noPercent.toFixed(2)),
+    abstainPercent: Number(abstainPercent.toFixed(2)),
+    yesLovelace: Math.round(yes).toString(),
+    noLovelace: Math.round(
+      no + alwaysNoConfidence + Math.max(0, notVoted)
+    ).toString(),
+    abstainLovelace: Math.round(abstain + alwaysAbstain).toString(),
+  };
+};
+
+/**
+ * Calculate SPO vote info using the new formula:
+ * - Not Voted = Total - Yes - No - Abstain
+ * - Yes % = Yes / (Yes + No + NotVoted)
+ * - No % = (No + NotVoted) / (Yes + No + NotVoted)
+ *
+ * All values from proposal are stored in lovelace (BigInt), returned as lovelace strings
+ */
+const buildSpoVoteInfo = (
+  proposal: ProposalWithVotes
+): GovernanceActionVoteInfo | undefined => {
+  // If no SPO voting power data, return undefined
+  if (
+    proposal.spoTotalVotePower === null ||
+    proposal.spoTotalVotePower === undefined
+  ) {
+    return undefined;
+  }
+
+  // Convert to number for calculations (values are in lovelace)
+  const total = toNumber(proposal.spoTotalVotePower);
+  const yes = toNumber(proposal.spoActiveYesVotePower);
+  const no = toNumber(proposal.spoActiveNoVotePower);
+  const abstain = toNumber(proposal.spoActiveAbstainVotePower);
+
+  // Calculate "Not Voted" power
+  const notVoted = total - yes - no - abstain;
+
+  // Denominator for percentage calculation (excludes abstain)
+  const denominator = yes + no + Math.max(0, notVoted);
+
+  // Calculate percentages
+  const yesPercent = denominator > 0 ? (yes / denominator) * 100 : 0;
+  const noPercent =
+    denominator > 0 ? ((no + Math.max(0, notVoted)) / denominator) * 100 : 0;
+  const abstainPercent = total > 0 ? (abstain / total) * 100 : 0;
+
+  // Return lovelace values as strings
+  return {
+    yesPercent: Number(yesPercent.toFixed(2)),
+    noPercent: Number(noPercent.toFixed(2)),
+    abstainPercent: Number(abstainPercent.toFixed(2)),
+    yesLovelace: Math.round(yes).toString(),
+    noLovelace: Math.round(no + Math.max(0, notVoted)).toString(),
+    abstainLovelace: Math.round(abstain).toString(),
+  };
+};
+
+/**
+ * Build vote info from tally (values are already in lovelace)
+ */
 const buildVoteInfo = (tally: AdaTally): GovernanceActionVoteInfo => ({
   yesPercent: percent(tally.yes, tally.total),
   noPercent: percent(tally.no, tally.total),
   abstainPercent: percent(tally.abstain, tally.total),
-  yesAda: tally.yes.toString(),
-  noAda: tally.no.toString(),
-  abstainAda: tally.abstain.toString(),
+  yesLovelace: Math.round(tally.yes).toString(),
+  noLovelace: Math.round(tally.no).toString(),
+  abstainLovelace: Math.round(tally.abstain).toString(),
 });
 
 const buildCcVoteInfo = (tally: CountTally): CCGovernanceActionVoteInfo => ({
@@ -233,13 +363,9 @@ const mapVoteRecord = (vote: VoteWithRelations): VoteRecord => {
     record.voterName = voterName;
   }
 
-  if (vote.votingPower) {
-    record.votingPower = vote.votingPower;
-  }
-
-  const ada = getAdaValue(vote);
-  if (ada) {
-    record.votingPowerAda = ada;
+  // votingPower is stored as BigInt in lovelace, convert to string for API response
+  if (vote.votingPower !== null && vote.votingPower !== undefined) {
+    record.votingPower = vote.votingPower.toString();
   }
 
   if (vote.anchorUrl) {
@@ -253,35 +379,32 @@ const mapVoteRecord = (vote: VoteWithRelations): VoteRecord => {
   return record;
 };
 
-const parseMetadata = (metadata?: string | null) => {
-  if (!metadata) {
-    return undefined;
+/**
+ * Determines constitutionality based on CC (Constitutional Committee) voting results
+ * A proposal is considered "Constitutional" if it receives ≥67% "Yes" votes from CC members
+ * Abstain votes ARE included in the total for threshold calculation
+ *
+ * @param ccCountTally - The CC vote count tally
+ * @returns "Constitutional", "Unconstitutional", or "Pending" if no CC votes yet
+ */
+const determineConstitutionality = (ccCountTally: CountTally): string => {
+  const totalCcVotes =
+    ccCountTally.yes + ccCountTally.no + ccCountTally.abstain;
+
+  // If no CC votes yet
+  if (totalCcVotes === 0) {
+    return "Pending";
   }
 
-  try {
-    return JSON.parse(metadata);
-  } catch {
-    return undefined;
-  }
-};
+  // Calculate yes percentage (including abstain votes in total)
+  const yesPercent = (ccCountTally.yes / totalCcVotes) * 100;
 
-const extractConstitutionality = (metadata: unknown): string | undefined => {
-  if (!metadata || typeof metadata !== "object") {
-    return undefined;
+  // ≥67% threshold for constitutional approval
+  if (yesPercent >= 67) {
+    return "Constitutional";
   }
 
-  if (
-    "constitutionality" in metadata
-    && typeof (metadata as Record<string, unknown>).constitutionality === "string"
-  ) {
-    return (metadata as Record<string, string>).constitutionality;
-  }
-
-  if ("status" in metadata && typeof (metadata as Record<string, unknown>).status === "string") {
-    return (metadata as Record<string, string>).status;
-  }
-
-  return undefined;
+  return "Unconstitutional";
 };
 
 const aggregateVotes = (votes: VoteWithRelations[]) => {
@@ -289,26 +412,37 @@ const aggregateVotes = (votes: VoteWithRelations[]) => {
   const spoVotes = votes.filter((vote) => vote.voterType === VoterType.SPO);
   const ccVotes = votes.filter((vote) => vote.voterType === VoterType.CC);
 
-  const drepAdaTally = tallyAdaVotes(drepVotes);
-  const spoAdaTally = tallyAdaVotes(spoVotes);
+  // Tally voting power in lovelace
+  const drepLovelaceTally = tallyLovelaceVotes(drepVotes);
+  const spoLovelaceTally = tallyLovelaceVotes(spoVotes);
   const ccCountTally = tallyCountVotes(ccVotes);
 
   const drepCountTally = tallyCountVotes(drepVotes);
   const spoCountTally = tallyCountVotes(spoVotes);
-  const totals = combineCountTallies(drepCountTally, spoCountTally, ccCountTally);
+  const totals = combineCountTallies(
+    drepCountTally,
+    spoCountTally,
+    ccCountTally
+  );
 
   return {
     drepVotes,
     spoVotes,
     ccVotes,
-    drepAdaTally,
-    spoAdaTally,
+    drepLovelaceTally,
+    spoLovelaceTally,
     ccCountTally,
     totals,
   };
 };
 
 const buildProposalIdentifier = (proposal: ProposalWithVotes) => {
+  // Use the proposalId field from the database (Cardano governance action ID)
+  if (proposal.proposalId) {
+    return proposal.proposalId;
+  }
+
+  // Fallback to txHash:certIndex format if proposalId is not available
   if (proposal.txHash) {
     if (proposal.certIndex !== null && proposal.certIndex !== undefined) {
       return `${proposal.txHash}:${proposal.certIndex}`;
@@ -324,21 +458,38 @@ export const mapProposalToGovernanceAction = (
 ): GovernanceAction => {
   const voteAggregation = aggregateVotes(proposal.onchainVotes ?? []);
 
-  const drepInfo = buildVoteInfo(voteAggregation.drepAdaTally);
-  const spoInfo = voteAggregation.spoVotes.length
-    ? buildVoteInfo(voteAggregation.spoAdaTally)
-    : undefined;
+  // Use new voting power-based calculations if data is available, otherwise fall back to vote tally
+  const hasDrepVotingPowerData =
+    proposal.drepTotalVotePower !== null &&
+    proposal.drepTotalVotePower !== undefined;
+  const drepInfo = hasDrepVotingPowerData
+    ? buildDrepVoteInfo(proposal)
+    : buildVoteInfo(voteAggregation.drepLovelaceTally);
+
+  // SPO info uses new formula if voting power data exists
+  const spoInfo =
+    buildSpoVoteInfo(proposal) ??
+    (voteAggregation.spoVotes.length
+      ? buildVoteInfo(voteAggregation.spoLovelaceTally)
+      : undefined);
+
   const ccInfo = voteAggregation.ccVotes.length
     ? buildCcVoteInfo(voteAggregation.ccCountTally)
     : undefined;
 
-  const metadata = parseMetadata(proposal.metadata);
-  const constitutionality =
-    extractConstitutionality(metadata) ?? "Unspecified";
+  // Determine constitutionality based on CC voting results (≥67% Yes = Constitutional)
+  const constitutionality = determineConstitutionality(
+    voteAggregation.ccCountTally
+  );
+
+  // Build hash field (txHash:certIndex format)
+  const hash = proposal.certIndex
+    ? `${proposal.txHash}:${proposal.certIndex}`
+    : proposal.txHash;
 
   return {
     proposalId: buildProposalIdentifier(proposal),
-    txHash: proposal.txHash,
+    hash,
     title: proposal.title,
     type: formatGovernanceType(proposal.governanceActionType),
     status: formatStatus(proposal.status),
@@ -359,9 +510,7 @@ export const mapProposalToGovernanceActionDetail = (
 ): GovernanceActionDetail => {
   const base = mapProposalToGovernanceAction(proposal);
   const votes = proposal.onchainVotes ?? [];
-  const standardVotes = votes.filter(
-    (vote) => vote.voterType !== VoterType.CC
-  );
+  const standardVotes = votes.filter((vote) => vote.voterType !== VoterType.CC);
   const ccVotes = votes.filter((vote) => vote.voterType === VoterType.CC);
 
   const mappedVotes = standardVotes.map(mapVoteRecord);

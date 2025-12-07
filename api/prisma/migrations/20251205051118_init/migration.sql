@@ -5,7 +5,7 @@ CREATE TYPE "VoteType" AS ENUM ('YES', 'NO', 'ABSTAIN');
 CREATE TYPE "VoterType" AS ENUM ('DREP', 'SPO', 'CC');
 
 -- CreateEnum
-CREATE TYPE "GovernanceType" AS ENUM ('INFO', 'TREASURY', 'CONSTITUTION', 'HARD_FORK', 'PROTOCOL_PARAMETER_CHANGE', 'NO_CONFIDENCE', 'UPDATE_COMMITTEE');
+CREATE TYPE "GovernanceType" AS ENUM ('INFO_ACTION', 'TREASURY_WITHDRAWALS', 'NEW_CONSTITUTION', 'HARD_FORK_INITIATION', 'PROTOCOL_PARAMETER_CHANGE', 'NO_CONFIDENCE', 'UPDATE_COMMITTEE');
 
 -- CreateEnum
 CREATE TYPE "ProposalStatus" AS ENUM ('ACTIVE', 'RATIFIED', 'ENACTED', 'EXPIRED', 'CLOSED');
@@ -31,7 +31,7 @@ CREATE TABLE "Drep" (
     "paymentAddress" TEXT,
     "iconUrl" TEXT,
     "doNotList" BOOLEAN,
-    "votingPower" DOUBLE PRECISION NOT NULL,
+    "votingPower" BIGINT NOT NULL,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3),
 
@@ -46,7 +46,7 @@ CREATE TABLE "SPO" (
     "poolName" TEXT,
     "ticker" TEXT,
     "iconUrl" TEXT,
-    "votingPower" DOUBLE PRECISION NOT NULL,
+    "votingPower" BIGINT NOT NULL,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3),
 
@@ -92,6 +92,19 @@ CREATE TABLE "Proposal" (
     "droppedEpoch" INTEGER,
     "expiredEpoch" INTEGER,
     "expirationEpoch" INTEGER,
+    "drepTotalVotePower" BIGINT,
+    "drepActiveYesVotePower" BIGINT,
+    "drepActiveNoVotePower" BIGINT,
+    "drepActiveAbstainVotePower" BIGINT,
+    "drepAlwaysAbstainVotePower" BIGINT,
+    "drepAlwaysNoConfidenceVotePower" BIGINT,
+    "drepInactiveVotePower" BIGINT,
+    "spoTotalVotePower" BIGINT,
+    "spoActiveYesVotePower" BIGINT,
+    "spoActiveNoVotePower" BIGINT,
+    "spoActiveAbstainVotePower" BIGINT,
+    "spoAlwaysAbstainVotePower" BIGINT,
+    "spoAlwaysNoConfidenceVotePower" BIGINT,
     "metadata" TEXT,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3),
@@ -106,8 +119,7 @@ CREATE TABLE "OnchainVote" (
     "proposalId" TEXT NOT NULL,
     "vote" "VoteType",
     "voterType" "VoterType" NOT NULL,
-    "votingPower" TEXT,
-    "votingPowerAda" DOUBLE PRECISION,
+    "votingPower" BIGINT,
     "anchorUrl" TEXT,
     "anchorHash" TEXT,
     "votedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
@@ -118,6 +130,19 @@ CREATE TABLE "OnchainVote" (
     "ccId" TEXT,
 
     CONSTRAINT "OnchainVote_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "NCL" (
+    "id" TEXT NOT NULL,
+    "year" INTEGER NOT NULL,
+    "epoch" INTEGER NOT NULL,
+    "current" BIGINT NOT NULL DEFAULT 0,
+    "limit" BIGINT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "NCL_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -146,6 +171,9 @@ CREATE UNIQUE INDEX "Proposal_txHash_certIndex_key" ON "Proposal"("txHash", "cer
 
 -- CreateIndex
 CREATE UNIQUE INDEX "OnchainVote_proposalId_voterType_drepId_spoId_ccId_key" ON "OnchainVote"("proposalId", "voterType", "drepId", "spoId", "ccId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NCL_year_key" ON "NCL"("year");
 
 -- AddForeignKey
 ALTER TABLE "Drep" ADD CONSTRAINT "Drep_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
