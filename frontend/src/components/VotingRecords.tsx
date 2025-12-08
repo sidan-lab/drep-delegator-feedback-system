@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +40,8 @@ interface VotingRecordsProps {
  * 1 ADA = 1,000,000 lovelace
  */
 function lovelaceToAda(lovelace: string | number): string {
-  const lovelaceNum = typeof lovelace === "string" ? Number(lovelace) : lovelace;
+  const lovelaceNum =
+    typeof lovelace === "string" ? Number(lovelace) : lovelace;
   if (isNaN(lovelaceNum) || lovelaceNum === 0) return "0";
   const adaValue = Math.round(lovelaceNum / 1_000_000);
   return new Intl.NumberFormat("en-US", {
@@ -67,6 +75,157 @@ function getVoterTypeBadgeClasses(voterType: string): string {
   }
 }
 
+/**
+ * Extract readable text from a JSON object
+ * Looks for common text fields and concatenates them
+ */
+function extractTextFromObject(obj: Record<string, unknown>): string {
+  // Priority fields that typically contain the main rationale text
+  const textFields = [
+    "comment",
+    "rationale",
+    "reason",
+    "motivation",
+    "body",
+    "text",
+    "content",
+    "description",
+    "summary",
+  ];
+
+  for (const field of textFields) {
+    if (obj[field] && typeof obj[field] === "string") {
+      return obj[field] as string;
+    }
+  }
+
+  // If no text field found, try to find any string value
+  for (const value of Object.values(obj)) {
+    if (typeof value === "string" && value.length > 50) {
+      return value;
+    }
+  }
+
+  // Fallback: return a formatted representation
+  return "Unable to extract rationale text from the source.";
+}
+
+/**
+ * Convert IPFS URL to HTTP gateway URL
+ * Handles ipfs:// protocol URLs and converts them to a public gateway
+ */
+function toFetchableUrl(url: string): string {
+  if (url.startsWith("ipfs://")) {
+    const cid = url.replace("ipfs://", "");
+    return `https://ipfs.io/ipfs/${cid}`;
+  }
+  return url;
+}
+
+/**
+ * Convert URL to a viewable format for external links
+ * For ipfs:// URLs, converts to gateway URL
+ */
+function toViewableUrl(url: string): string {
+  return toFetchableUrl(url);
+}
+
+/**
+ * Component to fetch and display rationale content from anchor URL
+ */
+function RationaleContent({ anchorUrl }: { anchorUrl: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchRationale() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const fetchUrl = toFetchableUrl(anchorUrl);
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch rationale: ${response.status}`);
+        }
+
+        const rawText = await response.text();
+        let text: string;
+
+        // Try to parse as JSON first
+        try {
+          const json = JSON.parse(rawText);
+
+          // Extract the rationale text from common JSON formats
+          if (typeof json === "string") {
+            text = json;
+          } else if (json.body?.comment) {
+            // CIP-100 format with nested comment
+            text = json.body.comment;
+          } else if (json.body) {
+            text = typeof json.body === "string" ? json.body : extractTextFromObject(json.body);
+          } else if (json.comment) {
+            text = json.comment;
+          } else if (json.rationale) {
+            text = json.rationale;
+          } else if (json.reason) {
+            text = json.reason;
+          } else if (json.motivation) {
+            text = json.motivation;
+          } else {
+            // Try to extract any text-like field from the object
+            text = extractTextFromObject(json);
+          }
+        } catch {
+          // Not JSON, use raw text
+          text = rawText;
+        }
+
+        // Clean up the text: convert \n to actual line breaks
+        text = text.replace(/\\n/g, "\n");
+
+        setContent(text);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load rationale"
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchRationale();
+  }, [anchorUrl]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-muted-foreground">Loading rationale...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-destructive py-4">
+        <p className="font-medium">Unable to load rationale</p>
+        <p className="text-sm text-muted-foreground mt-1">{error}</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          You can try opening the link directly using the external link button.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+      {content || "No rationale content available."}
+    </div>
+  );
+}
+
 export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [voteFilter, setVoteFilter] = useState<string>("all");
@@ -88,7 +247,8 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
       vote.voterId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vote.voterName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesVote = voteFilter === "all" || vote.vote.toLowerCase() === voteFilter;
+    const matchesVote =
+      voteFilter === "all" || vote.vote.toLowerCase() === voteFilter;
 
     const matchesVoterType =
       voterTypeFilter === "all" || vote.voterType === voterTypeFilter;
@@ -105,7 +265,13 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
 
   // Get display name and ID for a vote record
   const getVoterDisplayName = (vote: VoteRecord): string => {
-    return vote.voterName || vote.drepName || vote.voterId || vote.drepId || "Unknown";
+    return (
+      vote.voterName ||
+      vote.drepName ||
+      vote.voterId ||
+      vote.drepId ||
+      "Unknown"
+    );
   };
 
   const getVoterDisplayId = (vote: VoteRecord): string => {
@@ -117,7 +283,9 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold mb-2">Voting Records</h2>
-        <p className="text-muted-foreground">Individual votes and their rationale</p>
+        <p className="text-muted-foreground">
+          Individual votes and their rationale
+        </p>
       </div>
 
       {/* Stats Grid */}
@@ -131,7 +299,9 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
           <div className="text-sm text-muted-foreground">Yes Votes</div>
         </Card>
         <Card className="p-4 border-destructive/30">
-          <div className="text-2xl font-bold text-destructive">{voteStats.no}</div>
+          <div className="text-2xl font-bold text-destructive">
+            {voteStats.no}
+          </div>
           <div className="text-sm text-muted-foreground">No Votes</div>
         </Card>
         <Card className="p-4">
@@ -200,7 +370,10 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
             <TableBody>
               {filteredVotes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                  <TableCell
+                    colSpan={6}
+                    className="text-center text-muted-foreground py-12"
+                  >
                     No voting records found
                   </TableCell>
                 </TableRow>
@@ -211,7 +384,10 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                   const voterId = getVoterDisplayId(vote);
 
                   return (
-                    <TableRow key={`${voterId}-${index}`} className="hover:bg-muted/50">
+                    <TableRow
+                      key={`${voterId}-${index}`}
+                      className="hover:bg-muted/50"
+                    >
                       <TableCell>
                         <div>
                           <div className="font-semibold">{voterName}</div>
@@ -221,12 +397,20 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={getVoterTypeBadgeClasses(vote.voterType || "")}>
+                        <Badge
+                          variant="outline"
+                          className={getVoterTypeBadgeClasses(
+                            vote.voterType || ""
+                          )}
+                        >
                           {vote.voterType || "Unknown"}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
+                        <Badge
+                          variant="outline"
+                          className={getVoteBadgeClasses(vote.vote)}
+                        >
                           {vote.vote}
                         </Badge>
                       </TableCell>
@@ -236,7 +420,9 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                             {lovelaceToAda(vote.votingPower)} ADA
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">N/A</span>
+                          <span className="text-xs text-muted-foreground">
+                            N/A
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -254,7 +440,9 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                               </DialogTrigger>
                               <DialogContent className="max-w-3xl max-h-[80vh]">
                                 <DialogHeader>
-                                  <DialogTitle>Voting Rationale - {voterName}</DialogTitle>
+                                  <DialogTitle>
+                                    Voting Rationale - {voterName}
+                                  </DialogTitle>
                                   <DialogDescription>
                                     View the detailed reasoning for this vote
                                   </DialogDescription>
@@ -262,28 +450,33 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                                 <ScrollArea className="h-[500px] w-full rounded-md border p-4">
                                   <div className="space-y-4">
                                     <div className="flex items-center justify-between mb-4">
-                                      <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
+                                      <Badge
+                                        variant="outline"
+                                        className={getVoteBadgeClasses(
+                                          vote.vote
+                                        )}
+                                      >
                                         {vote.vote}
                                       </Badge>
                                       <a
-                                        href={vote.anchorUrl}
+                                        href={toViewableUrl(vote.anchorUrl!)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-primary hover:underline text-sm flex items-center gap-1"
                                       >
                                         <ExternalLink className="h-3 w-3" />
-                                        Open on IPFS
+                                        Original Source
                                       </a>
                                     </div>
-                                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                      {getMockRationale(voterName, vote.vote)}
-                                    </div>
+                                    <RationaleContent
+                                      anchorUrl={vote.anchorUrl!}
+                                    />
                                   </div>
                                 </ScrollArea>
                               </DialogContent>
                             </Dialog>
                             <a
-                              href={vote.anchorUrl}
+                              href={toViewableUrl(vote.anchorUrl!)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary hover:underline"
@@ -292,7 +485,9 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                             </a>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">No rationale</span>
+                          <span className="text-xs text-muted-foreground">
+                            No rationale
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -305,62 +500,4 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
       </Card>
     </div>
   );
-}
-
-// Mock rationale function - in real app, this would fetch from IPFS
-function getMockRationale(drepName: string, vote: string): string {
-  if (drepName === "SIPO") {
-    return `SIPO has chosen to ${vote} on this proposal.
-
-Our decision reflects both recognition of the proposal's innovation and concern for its structural implications on fairness, governance precedent, and long-term ecosystem balance.
-
-On the Loan-Based Treasury Model
-SIPO deeply appreciates the innovation behind this proposal—the introduction of a repayable, interest-bearing treasury loan.
-This marks a significant step toward treating Cardano's treasury not merely as a grant pool, but as a public revolving fund—a self-sustaining capital engine for ecosystem growth.
-
-Such a model introduces accountability and enables the treasury to recycle its funds through investment, repayment, and reinvestment, strengthening Cardano's financial autonomy and maturity as a decentralized system.
-
-Why SIPO ${vote}s
-SIPO supports the spirit and direction of this proposal:
-• Introducing a repayable, audited, legally binding treasury mechanism;
-• Enhancing visibility and liquidity for Cardano Native Tokens;
-• And promoting sustainable financial governance.
-
-We believe this pilot can become an educational milestone—demonstrating how a decentralized treasury can evolve from "funding" to responsible capital management, if built with transparency and replicability in mind.`;
-  }
-
-  const templates = {
-    Yes: `After careful consideration, ${drepName} votes YES on this proposal.
-
-We believe this initiative aligns with Cardano's long-term vision and will contribute positively to the ecosystem's growth. The proposal demonstrates:
-
-• Clear objectives and measurable outcomes
-• Responsible use of treasury funds
-• Strong community support and engagement
-• Alignment with Cardano's governance principles
-
-We support this action and look forward to seeing its positive impact on the ecosystem.`,
-    No: `${drepName} votes NO on this proposal.
-
-While we appreciate the effort behind this submission, we have concerns about:
-
-• The current structure and implementation plan
-• Potential risks to the treasury and ecosystem
-• Lack of sufficient detail in certain areas
-• Questions about long-term sustainability
-
-We encourage the proposers to address these concerns and potentially resubmit with improvements.`,
-    Abstain: `${drepName} chooses to ABSTAIN on this proposal.
-
-This decision reflects our position that while the proposal has merit, we require additional information or time for proper evaluation:
-
-• Further community discussion needed
-• Awaiting clarification on specific technical details
-• Observing how governance precedent develops
-• Maintaining neutrality on this particular matter
-
-We remain engaged and will continue monitoring the proposal's progress.`,
-  };
-
-  return templates[vote as keyof typeof templates] || "No rationale provided.";
 }
