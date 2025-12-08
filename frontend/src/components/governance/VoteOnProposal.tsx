@@ -1,0 +1,356 @@
+import { useState, useCallback } from "react";
+import { useWallet } from "@meshsdk/react";
+import { MeshTxBuilder } from "@meshsdk/core";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ConnectWalletButton } from "@/components/wallet";
+import {
+  ThumbsUp,
+  ThumbsDown,
+  MinusCircle,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
+
+type VoteChoice = "Yes" | "No" | "Abstain";
+
+interface VoteOnProposalProps {
+  txHash: string;
+  certIndex: number;
+  proposalTitle: string;
+  status: string;
+}
+
+interface VoteState {
+  isSubmitting: boolean;
+  isSuccess: boolean;
+  error: string | null;
+  txHash: string | null;
+}
+
+export function VoteOnProposal({
+  txHash,
+  certIndex,
+  proposalTitle,
+  status,
+}: VoteOnProposalProps) {
+  const { connected, wallet } = useWallet();
+  const [selectedVote, setSelectedVote] = useState<VoteChoice | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [anchorUrl, setAnchorUrl] = useState("");
+  const [voteState, setVoteState] = useState<VoteState>({
+    isSubmitting: false,
+    isSuccess: false,
+    error: null,
+    txHash: null,
+  });
+
+  const isActive = status === "Active";
+
+  const handleVoteClick = (vote: VoteChoice) => {
+    if (!connected) return;
+    setSelectedVote(vote);
+    setIsModalOpen(true);
+    setVoteState({ isSubmitting: false, isSuccess: false, error: null, txHash: null });
+  };
+
+  const submitVote = useCallback(async () => {
+    if (!wallet || !selectedVote) return;
+
+    setVoteState({ isSubmitting: true, isSuccess: false, error: null, txHash: null });
+
+    try {
+      // Get wallet data
+      const utxos = await wallet.getUtxos();
+      const changeAddress = await wallet.getChangeAddress();
+
+      // Get DRep ID using wallet.getDRep() method (per MeshJS documentation)
+      const dRep = await wallet.getDRep();
+
+      if (!dRep || !dRep.dRepIDCip105) {
+        throw new Error("Could not get DRep ID. Please ensure your wallet is registered as a DRep.");
+      }
+
+      const drepId = dRep.dRepIDCip105;
+
+      // Build the vote transaction
+      const txBuilder = new MeshTxBuilder({
+        verbose: true,
+      });
+
+      // Prepare anchor if URL provided
+      let anchor = undefined;
+      if (anchorUrl.trim()) {
+        // For now, use a placeholder hash - in production, you'd hash the actual content
+        anchor = {
+          anchorUrl: anchorUrl.trim(),
+          anchorDataHash: "0000000000000000000000000000000000000000000000000000000000000000",
+        };
+      }
+
+      // Build the transaction
+      await txBuilder
+        .vote(
+          {
+            type: "DRep",
+            drepId: drepId,
+          },
+          {
+            txHash: txHash,
+            txIndex: certIndex,
+          },
+          {
+            voteKind: selectedVote,
+            anchor,
+          }
+        )
+        .selectUtxosFrom(utxos)
+        .changeAddress(changeAddress)
+        .complete();
+
+      const unsignedTx = txBuilder.txHex;
+
+      // Sign the transaction
+      const signedTx = await wallet.signTx(unsignedTx);
+
+      // Submit the transaction
+      const submittedTxHash = await wallet.submitTx(signedTx);
+
+      setVoteState({
+        isSubmitting: false,
+        isSuccess: true,
+        error: null,
+        txHash: submittedTxHash,
+      });
+    } catch (err) {
+      console.error("Vote submission error:", err);
+      setVoteState({
+        isSubmitting: false,
+        isSuccess: false,
+        error: err instanceof Error ? err.message : "Failed to submit vote",
+        txHash: null,
+      });
+    }
+  }, [wallet, selectedVote, txHash, certIndex, anchorUrl]);
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedVote(null);
+    setAnchorUrl("");
+    setVoteState({ isSubmitting: false, isSuccess: false, error: null, txHash: null });
+  };
+
+  const getVoteButtonClass = (vote: VoteChoice) => {
+    const baseClass = "flex-1 h-16 text-lg font-semibold transition-all";
+    if (selectedVote === vote) {
+      switch (vote) {
+        case "Yes":
+          return `${baseClass} bg-emerald-500 hover:bg-emerald-600 text-white`;
+        case "No":
+          return `${baseClass} bg-red-500 hover:bg-red-600 text-white`;
+        case "Abstain":
+          return `${baseClass} bg-gray-500 hover:bg-gray-600 text-white`;
+      }
+    }
+    return baseClass;
+  };
+
+  if (!isActive) {
+    return (
+      <Card className="p-6">
+        <h3 className="font-semibold mb-4">Cast Your Vote</h3>
+        <div className="text-center py-6">
+          <Badge variant="outline" className="mb-3">
+            {status}
+          </Badge>
+          <p className="text-muted-foreground">
+            Voting is no longer available for this proposal.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card className="p-6">
+        <h3 className="font-semibold mb-4">Cast Your Vote</h3>
+
+        {!connected ? (
+          <div className="text-center py-6 space-y-4">
+            <p className="text-muted-foreground">
+              Connect your wallet to vote on this governance action.
+            </p>
+            <ConnectWalletButton />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select your vote choice:
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className={getVoteButtonClass("Yes")}
+                onClick={() => handleVoteClick("Yes")}
+              >
+                <ThumbsUp className="h-5 w-5 mr-2" />
+                Yes
+              </Button>
+              <Button
+                variant="outline"
+                className={getVoteButtonClass("No")}
+                onClick={() => handleVoteClick("No")}
+              >
+                <ThumbsDown className="h-5 w-5 mr-2" />
+                No
+              </Button>
+              <Button
+                variant="outline"
+                className={getVoteButtonClass("Abstain")}
+                onClick={() => handleVoteClick("Abstain")}
+              >
+                <MinusCircle className="h-5 w-5 mr-2" />
+                Abstain
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Your vote will be submitted on-chain as a DRep vote.
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Vote Confirmation Modal */}
+      <Dialog open={isModalOpen} onOpenChange={closeModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Your Vote</DialogTitle>
+            <DialogDescription>
+              You are about to vote <strong>{selectedVote}</strong> on this
+              governance action.
+            </DialogDescription>
+          </DialogHeader>
+
+          {voteState.isSuccess ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-center py-6">
+                <CheckCircle className="h-16 w-16 text-success" />
+              </div>
+              <div className="text-center space-y-2">
+                <p className="font-semibold text-success">
+                  Vote Submitted Successfully!
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Your vote has been submitted to the blockchain.
+                </p>
+                {voteState.txHash && (
+                  <a
+                    href={`https://cardanoscan.io/transaction/${voteState.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary text-sm flex items-center justify-center gap-1 hover:underline"
+                  >
+                    View on CardanoScan
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+              <Button className="w-full" onClick={closeModal}>
+                Close
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-secondary/50 p-4 rounded-lg">
+                <p className="text-sm font-medium mb-1">Proposal:</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {proposalTitle}
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <Badge
+                  variant="outline"
+                  className={
+                    selectedVote === "Yes"
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-lg px-6 py-2"
+                      : selectedVote === "No"
+                        ? "bg-red-500/20 text-red-400 border-red-500/30 text-lg px-6 py-2"
+                        : "bg-gray-500/20 text-gray-400 border-gray-500/30 text-lg px-6 py-2"
+                  }
+                >
+                  {selectedVote}
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="anchorUrl">Rationale URL (Optional)</Label>
+                <Input
+                  id="anchorUrl"
+                  placeholder="https://... or ipfs://..."
+                  value={anchorUrl}
+                  onChange={(e) => setAnchorUrl(e.target.value)}
+                  disabled={voteState.isSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Provide a URL to your voting rationale (e.g., IPFS link to a
+                  JSON document).
+                </p>
+              </div>
+
+              {voteState.error && (
+                <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>{voteState.error}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={closeModal}
+                  disabled={voteState.isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={submitVote}
+                  disabled={voteState.isSubmitting}
+                >
+                  {voteState.isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Confirm Vote"
+                  )}
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center">
+                This will create an on-chain transaction. You will be asked to
+                sign with your wallet.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

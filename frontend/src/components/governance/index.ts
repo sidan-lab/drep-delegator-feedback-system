@@ -1,0 +1,1 @@
+export { VoteOnProposal } from "./VoteOnProposal";
