@@ -232,10 +232,24 @@ const buildDrepVoteInfo = (
 };
 
 /**
- * Calculate SPO vote info using the new formula:
- * - Not Voted = Total - Yes - No - Abstain
- * - Yes % = Yes / (Yes + No + NotVoted)
- * - No % = (No + NotVoted) / (Yes + No + NotVoted)
+ * The governance action ID that marks the transition to the new SPO voting formula.
+ * Starting from this governance action (inclusive), NotVoted power is included in calculations.
+ * Before this governance action, NotVoted power is NOT included.
+ */
+const SPO_FORMULA_TRANSITION_GOV_ACTION =
+  "gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525";
+
+/**
+ * Calculate SPO vote info using the formula:
+ *
+ * For governance actions starting from gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525:
+ * - NotVoted = Total - Yes - No - Abstain - AlwaysAbstain - AlwaysNoConfidence
+ * - Yes % = Yes / (Yes + No + AlwaysNoConfidence + NotVoted)
+ * - No % = (No + AlwaysNoConfidence + NotVoted) / (Yes + No + AlwaysNoConfidence + NotVoted)
+ *
+ * For governance actions before gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525:
+ * - Yes % = Yes / (Yes + No + AlwaysNoConfidence)
+ * - No % = (No + AlwaysNoConfidence) / (Yes + No + AlwaysNoConfidence)
  *
  * All values from proposal are stored in lovelace (BigInt), returned as lovelace strings
  */
@@ -255,18 +269,36 @@ const buildSpoVoteInfo = (
   const yes = toNumber(proposal.spoActiveYesVotePower);
   const no = toNumber(proposal.spoActiveNoVotePower);
   const abstain = toNumber(proposal.spoActiveAbstainVotePower);
+  const alwaysAbstain = toNumber(proposal.spoAlwaysAbstainVotePower);
+  const alwaysNoConfidence = toNumber(proposal.spoAlwaysNoConfidenceVotePower);
 
   // Calculate "Not Voted" power
-  const notVoted = total - yes - no - abstain;
+  const notVoted = total - yes - no - abstain - alwaysAbstain - alwaysNoConfidence;
 
-  // Denominator for percentage calculation (excludes abstain)
-  const denominator = yes + no + Math.max(0, notVoted);
+  // Determine if this governance action uses the new formula (includes NotVoted)
+  const useNewFormula =
+    proposal.proposalId !== null &&
+    proposal.proposalId !== undefined &&
+    proposal.proposalId >= SPO_FORMULA_TRANSITION_GOV_ACTION;
+
+  let denominator: number;
+  let noTotal: number;
+
+  if (useNewFormula) {
+    // New formula: includes NotVoted in denominator and No calculation
+    denominator = yes + no + alwaysNoConfidence + Math.max(0, notVoted);
+    noTotal = no + alwaysNoConfidence + Math.max(0, notVoted);
+  } else {
+    // Old formula: excludes NotVoted
+    denominator = yes + no + alwaysNoConfidence;
+    noTotal = no + alwaysNoConfidence;
+  }
 
   // Calculate percentages
   const yesPercent = denominator > 0 ? (yes / denominator) * 100 : 0;
-  const noPercent =
-    denominator > 0 ? ((no + Math.max(0, notVoted)) / denominator) * 100 : 0;
-  const abstainPercent = total > 0 ? (abstain / total) * 100 : 0;
+  const noPercent = denominator > 0 ? (noTotal / denominator) * 100 : 0;
+  const abstainPercent =
+    total > 0 ? ((abstain + alwaysAbstain) / total) * 100 : 0;
 
   // Return lovelace values as strings
   return {
@@ -274,8 +306,8 @@ const buildSpoVoteInfo = (
     noPercent: Number(noPercent.toFixed(2)),
     abstainPercent: Number(abstainPercent.toFixed(2)),
     yesLovelace: Math.round(yes).toString(),
-    noLovelace: Math.round(no + Math.max(0, notVoted)).toString(),
-    abstainLovelace: Math.round(abstain).toString(),
+    noLovelace: Math.round(noTotal).toString(),
+    abstainLovelace: Math.round(abstain + alwaysAbstain).toString(),
   };
 };
 
