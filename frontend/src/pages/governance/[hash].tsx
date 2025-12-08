@@ -7,10 +7,42 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { VotingRecords } from "@/components/VotingRecords";
+import { VoteOnProposal } from "@/components/governance";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { ArrowLeft } from "lucide-react";
 import type { GovernanceActionDetail } from "@/types/governance";
+
+/**
+ * Parse proposal hash (txHash:certIndex format) into separate components
+ * The API returns hash in format "txHash:certIndex"
+ */
+function parseProposalHash(hash: string): {
+  txHash: string;
+  certIndex: number;
+} | null {
+  if (!hash) return null;
+
+  // Handle txHash:certIndex format (API format)
+  if (hash.includes(":")) {
+    const [txHash, certIndexStr] = hash.split(":");
+    const certIndex = parseInt(certIndexStr, 10);
+    if (txHash && !isNaN(certIndex)) {
+      return { txHash, certIndex };
+    }
+  }
+
+  // Handle txHash#certIndex format (alternative format)
+  if (hash.includes("#")) {
+    const [txHash, certIndexStr] = hash.split("#");
+    const certIndex = parseInt(certIndexStr, 10);
+    if (txHash && !isNaN(certIndex)) {
+      return { txHash, certIndex };
+    }
+  }
+
+  return null;
+}
 
 /**
  * Legacy governance actions with special voting rules
@@ -272,6 +304,23 @@ export default function GovernanceDetail() {
 
             {/* Right Column - Sidebar */}
             <div className="space-y-6">
+              {/* Vote on Proposal Card */}
+              {(() => {
+                // Use the hash field which is in txHash:certIndex format
+                const parsed = parseProposalHash(selectedAction.hash);
+                if (parsed) {
+                  return (
+                    <VoteOnProposal
+                      txHash={parsed.txHash}
+                      certIndex={parsed.certIndex}
+                      proposalTitle={selectedAction.title}
+                      status={selectedAction.status}
+                    />
+                  );
+                }
+                return null;
+              })()}
+
               {/* Constitutionality Card */}
               <Card className="p-6">
                 <h3 className="font-semibold mb-2">Constitutionality</h3>

@@ -155,8 +155,9 @@ function transformGovernanceAction(action: GovernanceAction): GovernanceAction {
   const spoAbstainAda = action.spo ? lovelaceToAdaString(action.spo.abstainLovelace) : undefined;
 
   return {
-    // Use proposalId as the hash identifier for routing
-    hash: action.proposalId || action.txHash || action.hash,
+    // Keep original hash (txHash:certIndex format) for voting transactions
+    // Use proposalId for display/routing (gov_action bech32 format)
+    hash: action.hash,
     proposalId: action.proposalId,
     txHash: action.txHash,
     title: action.title || "Untitled Proposal",
