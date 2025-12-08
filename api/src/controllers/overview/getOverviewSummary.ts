@@ -25,11 +25,15 @@ export const getOverviewSummary = async (_req: Request, res: Response) => {
       return acc;
     }, {});
 
+    const currentlyRatified = counts[ProposalStatus.RATIFIED] ?? 0;
+    const enacted = counts[ProposalStatus.ENACTED] ?? 0;
+
     const summary = {
       totalProposals,
       activeProposals: counts[ProposalStatus.ACTIVE] ?? 0,
-      ratifiedProposals: counts[ProposalStatus.RATIFIED] ?? 0,
-      enactedProposals: counts[ProposalStatus.ENACTED] ?? 0,
+      // Ratified = currently ratified + enacted (since enacted proposals were ratified first)
+      ratifiedProposals: currentlyRatified + enacted,
+      enactedProposals: enacted,
       expiredProposals: counts[ProposalStatus.EXPIRED] ?? 0,
       closedProposals: counts[ProposalStatus.CLOSED] ?? 0,
     };

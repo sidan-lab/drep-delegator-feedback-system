@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   loadGovernanceActions,
   loadOverviewSummary,
+  loadNCLData,
 } from "@/store/governanceSlice";
 import { Card } from "@/components/ui/card";
 
@@ -17,6 +18,7 @@ export default function Home() {
   useEffect(() => {
     dispatch(loadGovernanceActions());
     dispatch(loadOverviewSummary());
+    dispatch(loadNCLData());
   }, [dispatch]);
 
   const isLoading = isLoadingActions || isLoadingOverview;
@@ -54,6 +56,7 @@ export default function Home() {
                   onClick={() => {
                     dispatch(loadGovernanceActions());
                     dispatch(loadOverviewSummary());
+                    dispatch(loadNCLData());
                   }}
                   className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
                 >

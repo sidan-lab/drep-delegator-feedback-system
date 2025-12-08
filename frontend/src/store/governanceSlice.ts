@@ -5,11 +5,13 @@ import type {
   GovernanceActionType,
   VoteType,
   OverviewSummary,
+  NCLDisplayData,
 } from "@/types/governance";
 import {
   fetchGovernanceActions,
   fetchGovernanceActionDetail,
   fetchOverviewSummary,
+  fetchCurrentYearNCL,
 } from "@/services/api";
 
 interface GovernanceState {
@@ -17,6 +19,7 @@ interface GovernanceState {
   actions: GovernanceAction[];
   selectedAction: GovernanceActionDetail | null;
   overview: OverviewSummary | null;
+  nclData: NCLDisplayData | null;
 
   // Filters
   filters: {
@@ -29,17 +32,20 @@ interface GovernanceState {
   isLoadingActions: boolean;
   isLoadingDetail: boolean;
   isLoadingOverview: boolean;
+  isLoadingNCL: boolean;
 
   // Error states
   actionsError: string | null;
   detailError: string | null;
   overviewError: string | null;
+  nclError: string | null;
 }
 
 const initialState: GovernanceState = {
   actions: [],
   selectedAction: null,
   overview: null,
+  nclData: null,
   filters: {
     type: "All",
     searchQuery: "",
@@ -48,9 +54,11 @@ const initialState: GovernanceState = {
   isLoadingActions: false,
   isLoadingDetail: false,
   isLoadingOverview: false,
+  isLoadingNCL: false,
   actionsError: null,
   detailError: null,
   overviewError: null,
+  nclError: null,
 };
 
 // Async thunks for API calls
@@ -103,6 +111,25 @@ export const loadOverviewSummary = createAsyncThunk(
   }
 );
 
+export const loadNCLData = createAsyncThunk(
+  "governance/loadNCL",
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await fetchCurrentYearNCL();
+      if (!data) {
+        return rejectWithValue("NCL data not found for current year");
+      }
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : "Failed to load NCL data"
+      );
+    }
+  }
+);
+
 const governanceSlice = createSlice({
   name: "governance",
   initialState,
@@ -122,6 +149,10 @@ const governanceSlice = createSlice({
       state.overview = action.payload;
       state.overviewError = null;
     },
+    setNCLData: (state, action: PayloadAction<NCLDisplayData | null>) => {
+      state.nclData = action.payload;
+      state.nclError = null;
+    },
     setTypeFilter: (state, action: PayloadAction<GovernanceActionType>) => {
       state.filters.type = action.payload;
     },
@@ -138,6 +169,7 @@ const governanceSlice = createSlice({
       state.actionsError = null;
       state.detailError = null;
       state.overviewError = null;
+      state.nclError = null;
     },
   },
   extraReducers: (builder) => {
@@ -185,6 +217,21 @@ const governanceSlice = createSlice({
         state.isLoadingOverview = false;
         state.overviewError = action.payload as string;
       });
+
+    // Load NCL data
+    builder
+      .addCase(loadNCLData.pending, (state) => {
+        state.isLoadingNCL = true;
+        state.nclError = null;
+      })
+      .addCase(loadNCLData.fulfilled, (state, action) => {
+        state.isLoadingNCL = false;
+        state.nclData = action.payload;
+      })
+      .addCase(loadNCLData.rejected, (state, action) => {
+        state.isLoadingNCL = false;
+        state.nclError = action.payload as string;
+      });
   },
 });
 
@@ -192,6 +239,7 @@ export const {
   setActions,
   setSelectedAction,
   setOverview,
+  setNCLData,
   setTypeFilter,
   setSearchQuery,
   setVoteFilter,

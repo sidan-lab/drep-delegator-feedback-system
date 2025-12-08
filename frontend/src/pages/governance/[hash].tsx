@@ -10,12 +10,86 @@ import { VotingRecords } from "@/components/VotingRecords";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { ArrowLeft } from "lucide-react";
+import type { GovernanceActionDetail } from "@/types/governance";
 
-function formatAda(ada: string | number): string {
-  const num = typeof ada === "string" ? parseFloat(ada) : ada;
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
-    num
+/**
+ * Legacy governance actions with special voting rules
+ */
+const LEGACY_NON_APPLICABLE_DREP_ACTIONS = [
+  "gov_action1k2jertppnnndejjcglszfqq4yzw8evzrd2nt66rr6rqlz54xp0zsq05ecsn",
+  "gov_action1286ft23r7jem825s4l0y5rn8sgam0tz2ce04l7a38qmnhp3l9a6qqn850dw",
+  "gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525",
+];
+
+const LEGACY_NON_APPLICABLE_SPO_ACTIONS = [
+  "gov_action1k2jertppnnndejjcglszfqq4yzw8evzrd2nt66rr6rqlz54xp0zsq05ecsn",
+  "gov_action1286ft23r7jem825s4l0y5rn8sgam0tz2ce04l7a38qmnhp3l9a6qqn850dw",
+];
+
+const LEGACY_NON_APPLICABLE_CC_ACTIONS: string[] = [];
+
+/**
+ * Governance action types where CC doesn't vote (threshold is null)
+ */
+const CC_NOT_APPLICABLE_TYPES = ["No Confidence", "Update Committee"];
+
+/**
+ * Governance action types where SPO doesn't vote (threshold is null)
+ */
+const SPO_NOT_APPLICABLE_TYPES = [
+  "New Constitution",
+  "Protocol Parameter Change",
+  "Treasury Withdrawals",
+];
+
+function isLegacyAction(hash: string): boolean {
+  const legacyActions = [
+    ...LEGACY_NON_APPLICABLE_DREP_ACTIONS,
+    ...LEGACY_NON_APPLICABLE_SPO_ACTIONS,
+    ...LEGACY_NON_APPLICABLE_CC_ACTIONS,
+  ];
+  return legacyActions.some(
+    (actionId) => hash === actionId || hash.includes(actionId)
   );
+}
+
+function isCcNotApplicable(action: GovernanceActionDetail): boolean {
+  if (
+    LEGACY_NON_APPLICABLE_CC_ACTIONS.some(
+      (actionId) => action.hash === actionId || action.hash.includes(actionId)
+    )
+  ) {
+    return true;
+  }
+  if (!isLegacyAction(action.hash)) {
+    return CC_NOT_APPLICABLE_TYPES.includes(action.type);
+  }
+  return false;
+}
+
+function isDrepNotApplicable(action: GovernanceActionDetail): boolean {
+  if (
+    LEGACY_NON_APPLICABLE_DREP_ACTIONS.some(
+      (actionId) => action.hash === actionId || action.hash.includes(actionId)
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isSpoNotApplicable(action: GovernanceActionDetail): boolean {
+  if (
+    LEGACY_NON_APPLICABLE_SPO_ACTIONS.some(
+      (actionId) => action.hash === actionId || action.hash.includes(actionId)
+    )
+  ) {
+    return true;
+  }
+  if (!isLegacyAction(action.hash)) {
+    return SPO_NOT_APPLICABLE_TYPES.includes(action.type);
+  }
+  return false;
 }
 
 function getStatusColor(status: string): string {
@@ -207,7 +281,13 @@ export default function GovernanceDetail() {
               </Card>
 
               {/* DRep Votes Card */}
-              <Card className="p-6">
+              <Card
+                className={`p-6 ${
+                  isDrepNotApplicable(selectedAction)
+                    ? "opacity-30 blur-[1px]"
+                    : ""
+                }`}
+              >
                 <h3 className="font-semibold mb-4">DRep Votes</h3>
                 <div className="space-y-4">
                   <div>
@@ -216,7 +296,7 @@ export default function GovernanceDetail() {
                         Yes: {selectedAction.drepYesPercent.toFixed(1)}%
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        {formatAda(selectedAction.drepYesAda)} ₳
+                        {selectedAction.drepYesAda} ₳
                       </span>
                     </div>
                     <Progress
@@ -230,7 +310,7 @@ export default function GovernanceDetail() {
                         No: {selectedAction.drepNoPercent.toFixed(1)}%
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        {formatAda(selectedAction.drepNoAda)} ₳
+                        {selectedAction.drepNoAda} ₳
                       </span>
                     </div>
                     <Progress
@@ -243,7 +323,13 @@ export default function GovernanceDetail() {
 
               {/* SPO Votes Card */}
               {selectedAction.spoYesPercent !== undefined && (
-                <Card className="p-6">
+                <Card
+                  className={`p-6 ${
+                    isSpoNotApplicable(selectedAction)
+                      ? "opacity-30 blur-[1px]"
+                      : ""
+                  }`}
+                >
                   <h3 className="font-semibold mb-4">SPO Votes</h3>
                   <div className="space-y-4">
                     <div>
@@ -252,7 +338,7 @@ export default function GovernanceDetail() {
                           Yes: {selectedAction.spoYesPercent.toFixed(1)}%
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          {formatAda(selectedAction.spoYesAda || "0")} ₳
+                          {selectedAction.spoYesAda || "0"} ₳
                         </span>
                       </div>
                       <Progress
@@ -267,7 +353,7 @@ export default function GovernanceDetail() {
                           %
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          {formatAda(selectedAction.spoNoAda || "0")} ₳
+                          {selectedAction.spoNoAda || "0"} ₳
                         </span>
                       </div>
                       <Progress
@@ -281,7 +367,13 @@ export default function GovernanceDetail() {
 
               {/* CC Votes Card */}
               {selectedAction.ccYesPercent !== undefined && (
-                <Card className="p-6">
+                <Card
+                  className={`p-6 ${
+                    isCcNotApplicable(selectedAction)
+                      ? "opacity-30 blur-[1px]"
+                      : ""
+                  }`}
+                >
                   <h3 className="font-semibold mb-4">
                     Constitutional Committee Votes
                   </h3>
@@ -361,20 +453,14 @@ export default function GovernanceDetail() {
             </div>
           </div>
 
-          {/* Voting Records Section */}
-          {selectedAction.votes && selectedAction.votes.length > 0 && (
+          {/* Voting Records Section - Combined DRep, SPO, and CC votes */}
+          {((selectedAction.votes && selectedAction.votes.length > 0) ||
+            (selectedAction.ccVotes && selectedAction.ccVotes.length > 0)) && (
             <div className="mt-12">
-              <VotingRecords votes={selectedAction.votes} />
-            </div>
-          )}
-
-          {/* CC Voting Records Section */}
-          {selectedAction.ccVotes && selectedAction.ccVotes.length > 0 && (
-            <div className="mt-12">
-              <h2 className="text-2xl font-semibold mb-6">
-                Constitutional Committee Voting Records
-              </h2>
-              <VotingRecords votes={selectedAction.ccVotes} />
+              <VotingRecords
+                votes={selectedAction.votes || []}
+                ccVotes={selectedAction.ccVotes || []}
+              />
             </div>
           )}
         </div>

@@ -1,3 +1,22 @@
+/**
+ * Voting threshold requirements per voter type
+ * null means this voter type does not participate in ratification for this action type
+ */
+export interface VotingThreshold {
+  ccThreshold: number | null; // CC threshold (e.g., 2/3 = 0.67), null if CC doesn't vote
+  drepThreshold: number; // DRep threshold (e.g., 0.67)
+  spoThreshold: number | null; // SPO threshold (e.g., 0.51), null if SPO doesn't vote
+}
+
+/**
+ * Voting status per voter type indicating if threshold is met
+ */
+export interface VotingStatus {
+  ccPassing: boolean | null; // null if CC doesn't participate
+  drepPassing: boolean;
+  spoPassing: boolean | null; // null if SPO doesn't participate
+}
+
 export interface GovernanceAction {
   proposalId: string;
   hash: string; // txHash:certIndex format
@@ -13,6 +32,10 @@ export interface GovernanceAction {
   totalAbstain: number;
   submissionEpoch: number;
   expiryEpoch: number;
+  // Voting threshold and status fields
+  threshold: VotingThreshold;
+  votingStatus: VotingStatus;
+  passing: boolean; // Overall: true if all required voter types meet their thresholds
 }
 
 export interface GovernanceActionVoteInfo {

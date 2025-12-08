@@ -234,6 +234,30 @@
  *                 type: string
  *                 description: Timestamp when vote was cast
  *                 example: "2024-01-15T11:00:00Z"
+ *     NCLYearData:
+ *       type: object
+ *       properties:
+ *         year:
+ *           type: number
+ *           description: Calendar year
+ *           example: 2025
+ *         currentValue:
+ *           type: string
+ *           description: Current treasury withdrawals in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "1234560000000"
+ *         targetValue:
+ *           type: string
+ *           description: Net change limit in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "5000000000000"
+ *         epoch:
+ *           type: number
+ *           description: Epoch when this NCL record was last updated
+ *           example: 520
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: ISO 8601 timestamp when the record was last updated
+ *           example: "2025-01-15T10:30:00Z"
  *     ErrorResponse:
  *       type: object
  *       properties:

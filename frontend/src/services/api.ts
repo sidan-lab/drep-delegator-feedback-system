@@ -9,6 +9,8 @@ import type {
   GovernanceActionDetail,
   OverviewSummary,
   VoteRecord,
+  NCLYearData,
+  NCLDisplayData,
 } from "@/types/governance";
 
 /**
@@ -41,10 +43,60 @@ async function fetchApi<T>(url: string): Promise<T> {
 
 /**
  * Fetch overview summary statistics
- * Returns: proposal counts by status, NCL data
+ * Returns: proposal counts by status
  */
 export async function fetchOverviewSummary(): Promise<OverviewSummary> {
   return fetchApi<OverviewSummary>(API_ENDPOINTS.overview);
+}
+
+/**
+ * Convert lovelace string to ADA number
+ * 1 ADA = 1,000,000 lovelace
+ */
+function lovelaceToAda(lovelace: string): number {
+  return Number(lovelace) / 1_000_000;
+}
+
+/**
+ * Transform NCL API response to display format (lovelace to ADA)
+ */
+function transformNCLData(data: NCLYearData): NCLDisplayData {
+  const currentAda = lovelaceToAda(data.currentValue);
+  const targetAda = lovelaceToAda(data.targetValue);
+  const percentUsed = targetAda > 0 ? (currentAda / targetAda) * 100 : 0;
+
+  return {
+    year: data.year,
+    currentValueAda: currentAda,
+    targetValueAda: targetAda,
+    percentUsed,
+    epoch: data.epoch,
+    updatedAt: data.updatedAt,
+  };
+}
+
+/**
+ * Fetch NCL data for all years
+ * Returns: Array of NCL data with values in ADA
+ */
+export async function fetchNCLData(): Promise<NCLDisplayData[]> {
+  const data = await fetchApi<NCLYearData[]>(API_ENDPOINTS.ncl);
+  return data.map(transformNCLData);
+}
+
+/**
+ * Fetch NCL data for the current year
+ * Returns: NCL data for current year with values in ADA, or null if not found
+ */
+export async function fetchCurrentYearNCL(): Promise<NCLDisplayData | null> {
+  const currentYear = new Date().getFullYear();
+  try {
+    const data = await fetchApi<NCLYearData>(API_ENDPOINTS.nclByYear(currentYear));
+    return transformNCLData(data);
+  } catch (error) {
+    console.error(`Failed to fetch NCL data for year ${currentYear}:`, error);
+    return null;
+  }
 }
 
 /**
@@ -78,10 +130,30 @@ export async function fetchGovernanceActionDetail(
 }
 
 /**
+ * Convert lovelace string to formatted ADA string (divide by 1,000,000, round to integer, add commas)
+ */
+function lovelaceToAdaString(lovelace: string | undefined): string {
+  if (!lovelace) return "0";
+  const adaValue = Math.round(Number(lovelace) / 1_000_000);
+  return adaValue.toLocaleString();
+}
+
+/**
  * Transform API governance action to frontend format
  * Maps API field names to frontend expected format
+ * Converts lovelace values to ADA for display
  */
 function transformGovernanceAction(action: GovernanceAction): GovernanceAction {
+  // Convert lovelace to ADA for DRep
+  const drepYesAda = lovelaceToAdaString(action.drep?.yesLovelace);
+  const drepNoAda = lovelaceToAdaString(action.drep?.noLovelace);
+  const drepAbstainAda = lovelaceToAdaString(action.drep?.abstainLovelace);
+
+  // Convert lovelace to ADA for SPO
+  const spoYesAda = action.spo ? lovelaceToAdaString(action.spo.yesLovelace) : undefined;
+  const spoNoAda = action.spo ? lovelaceToAdaString(action.spo.noLovelace) : undefined;
+  const spoAbstainAda = action.spo ? lovelaceToAdaString(action.spo.abstainLovelace) : undefined;
+
   return {
     // Use proposalId as the hash identifier for routing
     hash: action.proposalId || action.txHash || action.hash,
@@ -96,17 +168,17 @@ function transformGovernanceAction(action: GovernanceAction): GovernanceAction {
     drepYesPercent: action.drep?.yesPercent ?? 0,
     drepNoPercent: action.drep?.noPercent ?? 0,
     drepAbstainPercent: action.drep?.abstainPercent ?? 0,
-    drepYesAda: action.drep?.yesAda ?? "0",
-    drepNoAda: action.drep?.noAda ?? "0",
-    drepAbstainAda: action.drep?.abstainAda ?? "0",
+    drepYesAda,
+    drepNoAda,
+    drepAbstainAda,
 
     // SPO voting data (optional)
     spoYesPercent: action.spo?.yesPercent,
     spoNoPercent: action.spo?.noPercent,
     spoAbstainPercent: action.spo?.abstainPercent,
-    spoYesAda: action.spo?.yesAda,
-    spoNoAda: action.spo?.noAda,
-    spoAbstainAda: action.spo?.abstainAda,
+    spoYesAda,
+    spoNoAda,
+    spoAbstainAda,
 
     // CC voting data (optional)
     ccYesPercent: action.cc?.yesPercent,

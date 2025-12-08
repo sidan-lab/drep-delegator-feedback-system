@@ -1,10 +1,16 @@
 /**
  * Vote info for DRep and SPO voters (ADA-based voting power)
+ * API returns values in lovelace, frontend converts to ADA for display
  */
 export interface GovernanceActionVoteInfo {
   yesPercent: number;
   noPercent: number;
   abstainPercent: number;
+  // API returns lovelace values
+  yesLovelace?: string;
+  noLovelace?: string;
+  abstainLovelace?: string;
+  // Frontend uses ADA values for display
   yesAda: string;
   noAda: string;
   abstainAda: string;
@@ -142,11 +148,25 @@ export interface OverviewSummary {
 }
 
 /**
- * NCL (Network Consensus Ledger) data for stats display
- * @deprecated Use OverviewSummary instead
+ * NCL (Net Change Limit) data for treasury withdrawal tracking
+ * Values are in lovelace (1 ADA = 1,000,000 lovelace)
  */
-export interface NCLData {
+export interface NCLYearData {
   year: number;
-  currentValue: number;
-  targetValue: number;
+  currentValue: string; // In lovelace (string for BigInt serialization)
+  targetValue: string; // In lovelace (string for BigInt serialization)
+  epoch: number;
+  updatedAt: string;
+}
+
+/**
+ * NCL data formatted for display (in ADA)
+ */
+export interface NCLDisplayData {
+  year: number;
+  currentValueAda: number;
+  targetValueAda: number;
+  percentUsed: number;
+  epoch: number;
+  updatedAt: string;
 }

@@ -16,6 +16,8 @@ import {
   GovernanceActionVoteInfo,
   CCGovernanceActionVoteInfo,
   VoteRecord,
+  VotingThreshold,
+  VotingStatus,
 } from "../models";
 
 type VoteWithRelations = OnchainVote & {
@@ -233,21 +235,50 @@ const buildDrepVoteInfo = (
 
 /**
  * The governance action ID that marks the transition to the new SPO voting formula.
+ * This is the "Hard Fork to Protocol Version 10 (Plomin Hard Fork)" governance action.
  * Starting from this governance action (inclusive), NotVoted power is included in calculations.
  * Before this governance action, NotVoted power is NOT included.
+ *
+ * The submission epoch for this governance action is 534.
  */
 const SPO_FORMULA_TRANSITION_GOV_ACTION =
   "gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525";
+const SPO_FORMULA_TRANSITION_EPOCH = 534;
+
+/**
+ * Determines if a proposal should use the new SPO voting formula.
+ * The new formula (which includes NotVoted power) applies to:
+ * - The Plomin Hard Fork governance action itself
+ * - Any governance action submitted on or after the Plomin Hard Fork epoch (534)
+ *
+ * @param proposal - The proposal to check
+ * @returns true if the new formula should be used, false for old formula
+ */
+const shouldUseNewSpoFormula = (proposal: ProposalWithVotes): boolean => {
+  // Check if this is the transition governance action itself
+  if (proposal.proposalId === SPO_FORMULA_TRANSITION_GOV_ACTION) {
+    return true;
+  }
+
+  // Check by submission epoch - new formula for epoch >= 534
+  const submissionEpoch = proposal.submissionEpoch;
+  if (submissionEpoch !== null && submissionEpoch !== undefined) {
+    return submissionEpoch >= SPO_FORMULA_TRANSITION_EPOCH;
+  }
+
+  // If no submission epoch data, default to old formula for safety
+  return false;
+};
 
 /**
  * Calculate SPO vote info using the formula:
  *
- * For governance actions starting from gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525:
+ * For governance actions starting from gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525 (epoch 534):
  * - NotVoted = Total - Yes - No - Abstain - AlwaysAbstain - AlwaysNoConfidence
  * - Yes % = Yes / (Yes + No + AlwaysNoConfidence + NotVoted)
  * - No % = (No + AlwaysNoConfidence + NotVoted) / (Yes + No + AlwaysNoConfidence + NotVoted)
  *
- * For governance actions before gov_action1pvv5wmjqhwa4u85vu9f4ydmzu2mgt8n7et967ph2urhx53r70xusqnmm525:
+ * For governance actions before epoch 534:
  * - Yes % = Yes / (Yes + No + AlwaysNoConfidence)
  * - No % = (No + AlwaysNoConfidence) / (Yes + No + AlwaysNoConfidence)
  *
@@ -276,10 +307,7 @@ const buildSpoVoteInfo = (
   const notVoted = total - yes - no - abstain - alwaysAbstain - alwaysNoConfidence;
 
   // Determine if this governance action uses the new formula (includes NotVoted)
-  const useNewFormula =
-    proposal.proposalId !== null &&
-    proposal.proposalId !== undefined &&
-    proposal.proposalId >= SPO_FORMULA_TRANSITION_GOV_ACTION;
+  const useNewFormula = shouldUseNewSpoFormula(proposal);
 
   let denominator: number;
   let noTotal: number;
@@ -323,14 +351,48 @@ const buildVoteInfo = (tally: AdaTally): GovernanceActionVoteInfo => ({
   abstainLovelace: Math.round(tally.abstain).toString(),
 });
 
-const buildCcVoteInfo = (tally: CountTally): CCGovernanceActionVoteInfo => ({
-  yesPercent: percent(tally.yes, tally.total),
-  noPercent: percent(tally.no, tally.total),
-  abstainPercent: percent(tally.abstain, tally.total),
-  yesCount: tally.yes,
-  noCount: tally.no,
-  abstainCount: tally.abstain,
-});
+/**
+ * Total number of Constitutional Committee members
+ * Non-voting CC members are treated as "No" votes for ratification purposes
+ */
+const TOTAL_CC_MEMBERS = 7;
+
+/**
+ * Build CC vote info with the formula:
+ * - Non-voting CC members are treated as "No" votes
+ * - Explicit Abstain is NOT counted as No, but excluded from the denominator
+ * - Yes % = YesCount / (TotalMembers - AbstainCount) × 100
+ * - No % = (NoCount + NotVoted) / (TotalMembers - AbstainCount) × 100
+ *
+ * @param tally - The count of actual votes cast (yes, no, abstain)
+ */
+const buildCcVoteInfo = (tally: CountTally): CCGovernanceActionVoteInfo => {
+  const { yes, no, abstain } = tally;
+
+  // Calculate not voted members (those who haven't voted at all)
+  const notVoted = Math.max(0, TOTAL_CC_MEMBERS - yes - no - abstain);
+
+  // Effective "No" includes explicit No votes plus non-voters
+  const effectiveNo = no + notVoted;
+
+  // Denominator excludes abstain votes (as per Cardano governance rules)
+  const denominator = TOTAL_CC_MEMBERS - abstain;
+
+  // Calculate percentages
+  const yesPercent = denominator > 0 ? (yes / denominator) * 100 : 0;
+  const noPercent = denominator > 0 ? (effectiveNo / denominator) * 100 : 0;
+  const abstainPercent =
+    TOTAL_CC_MEMBERS > 0 ? (abstain / TOTAL_CC_MEMBERS) * 100 : 0;
+
+  return {
+    yesPercent: Number(yesPercent.toFixed(2)),
+    noPercent: Number(noPercent.toFixed(2)),
+    abstainPercent: Number(abstainPercent.toFixed(2)),
+    yesCount: yes,
+    noCount: effectiveNo, // Includes non-voters
+    abstainCount: abstain,
+  };
+};
 
 const formatVoterType = (type: VoterType): VoteRecord["voterType"] => {
   switch (type) {
@@ -414,22 +476,29 @@ const mapVoteRecord = (vote: VoteWithRelations): VoteRecord => {
 /**
  * Determines constitutionality based on CC (Constitutional Committee) voting results
  * A proposal is considered "Constitutional" if it receives ≥67% "Yes" votes from CC members
- * Abstain votes ARE included in the total for threshold calculation
+ *
+ * Formula (same as buildCcVoteInfo):
+ * - Non-voting CC members are treated as "No" votes
+ * - Explicit Abstain is excluded from the denominator
+ * - Yes % = YesCount / (TotalMembers - AbstainCount) × 100
  *
  * @param ccCountTally - The CC vote count tally
  * @returns "Constitutional", "Unconstitutional", or "Pending" if no CC votes yet
  */
 const determineConstitutionality = (ccCountTally: CountTally): string => {
-  const totalCcVotes =
-    ccCountTally.yes + ccCountTally.no + ccCountTally.abstain;
+  const { yes, no, abstain } = ccCountTally;
+  const totalVotesCast = yes + no + abstain;
 
   // If no CC votes yet
-  if (totalCcVotes === 0) {
+  if (totalVotesCast === 0) {
     return "Pending";
   }
 
-  // Calculate yes percentage (including abstain votes in total)
-  const yesPercent = (ccCountTally.yes / totalCcVotes) * 100;
+  // Denominator excludes abstain votes (as per Cardano governance rules)
+  const denominator = TOTAL_CC_MEMBERS - abstain;
+
+  // Calculate yes percentage
+  const yesPercent = denominator > 0 ? (yes / denominator) * 100 : 0;
 
   // ≥67% threshold for constitutional approval
   if (yesPercent >= 67) {
@@ -466,6 +535,151 @@ const aggregateVotes = (votes: VoteWithRelations[]) => {
     ccCountTally,
     totals,
   };
+};
+
+/**
+ * Voting thresholds per governance action type
+ * Based on Cardano governance specifications:
+ * - CC threshold: 2/3 majority required (null if CC doesn't vote)
+ * - DRep threshold: varies by action type
+ * - SPO threshold: varies by action type (null if SPO doesn't vote)
+ *
+ * Note: Protocol Parameter Change has sub-types with different thresholds,
+ * but we don't have sub-type information from Koios, so we use the most common threshold (0.67)
+ */
+const VOTING_THRESHOLDS: Record<GovernanceType, VotingThreshold> = {
+  // 1. Motion of no-confidence: CC doesn't vote, DRep 0.67, SPO 0.51
+  NO_CONFIDENCE: {
+    ccThreshold: null,
+    drepThreshold: 0.67,
+    spoThreshold: 0.51,
+  },
+  // 2. Update committee: CC doesn't vote (in normal state), DRep 0.67, SPO 0.51
+  // Note: In state of no-confidence, thresholds change to DRep 0.60, SPO 0.51
+  // We use normal state thresholds as default
+  UPDATE_COMMITTEE: {
+    ccThreshold: null,
+    drepThreshold: 0.67,
+    spoThreshold: 0.51,
+  },
+  // 3. New Constitution or Guardrails Script: CC 2/3, DRep 0.75, SPO doesn't vote
+  NEW_CONSTITUTION: {
+    ccThreshold: 0.67,
+    drepThreshold: 0.75,
+    spoThreshold: null,
+  },
+  // 4. Hard-fork initiation: CC 2/3, DRep 0.60, SPO 0.51
+  HARD_FORK_INITIATION: {
+    ccThreshold: 0.67,
+    drepThreshold: 0.60,
+    spoThreshold: 0.51,
+  },
+  // 5. Protocol parameter changes: CC 2/3, DRep 0.67 (varies by group), SPO doesn't vote
+  // Note: Different parameter groups have different thresholds (0.67, 0.75)
+  // Using 0.67 as default since we don't have sub-type information
+  PROTOCOL_PARAMETER_CHANGE: {
+    ccThreshold: 0.67,
+    drepThreshold: 0.67,
+    spoThreshold: null,
+  },
+  // 6. Treasury withdrawal: CC 2/3, DRep 0.67, SPO doesn't vote
+  TREASURY_WITHDRAWALS: {
+    ccThreshold: 0.67,
+    drepThreshold: 0.67,
+    spoThreshold: null,
+  },
+  // 7. Info action: CC 2/3, DRep 1.0 (100%), SPO 1.0 (100%)
+  // Note: Info actions cannot be ratified, these thresholds are for display only
+  INFO_ACTION: {
+    ccThreshold: 0.67,
+    drepThreshold: 1.0,
+    spoThreshold: 1.0,
+  },
+};
+
+/**
+ * Get voting threshold for a governance action type
+ */
+const getVotingThreshold = (
+  governanceType: GovernanceType | null | undefined
+): VotingThreshold => {
+  if (!governanceType) {
+    // Default to Info Action thresholds for unknown types
+    return VOTING_THRESHOLDS.INFO_ACTION;
+  }
+  return VOTING_THRESHOLDS[governanceType] ?? VOTING_THRESHOLDS.INFO_ACTION;
+};
+
+/**
+ * Evaluate if a voter type meets its threshold
+ * Returns true if yesPercent >= threshold * 100
+ */
+const evaluateThreshold = (
+  yesPercent: number,
+  threshold: number | null
+): boolean | null => {
+  if (threshold === null) {
+    return null; // This voter type doesn't participate
+  }
+  return yesPercent >= threshold * 100;
+};
+
+/**
+ * Determine voting status for all voter types
+ */
+const determineVotingStatus = (
+  threshold: VotingThreshold,
+  drepInfo: GovernanceActionVoteInfo,
+  spoInfo: GovernanceActionVoteInfo | undefined,
+  ccInfo: CCGovernanceActionVoteInfo | undefined
+): VotingStatus => {
+  // DRep always participates
+  const drepPassing = evaluateThreshold(drepInfo.yesPercent, threshold.drepThreshold) ?? false;
+
+  // SPO may or may not participate
+  const spoPassing =
+    threshold.spoThreshold === null
+      ? null
+      : spoInfo
+        ? evaluateThreshold(spoInfo.yesPercent, threshold.spoThreshold)
+        : false;
+
+  // CC may or may not participate
+  const ccPassing =
+    threshold.ccThreshold === null
+      ? null
+      : ccInfo
+        ? evaluateThreshold(ccInfo.yesPercent, threshold.ccThreshold)
+        : false;
+
+  return {
+    ccPassing,
+    drepPassing,
+    spoPassing,
+  };
+};
+
+/**
+ * Determine if the proposal is passing overall
+ * A proposal passes if ALL required voter types meet their thresholds
+ */
+const isProposalPassing = (votingStatus: VotingStatus): boolean => {
+  // DRep must pass (always required)
+  if (!votingStatus.drepPassing) {
+    return false;
+  }
+
+  // SPO must pass if required (not null)
+  if (votingStatus.spoPassing === false) {
+    return false;
+  }
+
+  // CC must pass if required (not null)
+  if (votingStatus.ccPassing === false) {
+    return false;
+  }
+
+  return true;
 };
 
 const buildProposalIdentifier = (proposal: ProposalWithVotes) => {
@@ -519,6 +733,15 @@ export const mapProposalToGovernanceAction = (
     ? `${proposal.txHash}:${proposal.certIndex}`
     : proposal.txHash;
 
+  // Get voting thresholds based on governance action type
+  const threshold = getVotingThreshold(proposal.governanceActionType);
+
+  // Determine voting status for each voter type
+  const votingStatus = determineVotingStatus(threshold, drepInfo, spoInfo, ccInfo);
+
+  // Determine if proposal is passing overall
+  const passing = isProposalPassing(votingStatus);
+
   return {
     proposalId: buildProposalIdentifier(proposal),
     hash,
@@ -534,6 +757,9 @@ export const mapProposalToGovernanceAction = (
     totalAbstain: voteAggregation.totals.abstain,
     submissionEpoch: proposal.submissionEpoch ?? 0,
     expiryEpoch: proposal.expirationEpoch ?? 0,
+    threshold,
+    votingStatus,
+    passing,
   };
 };
 

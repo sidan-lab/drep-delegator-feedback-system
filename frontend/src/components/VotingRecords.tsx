@@ -25,12 +25,20 @@ import { Search, ExternalLink, FileText } from "lucide-react";
 
 interface VotingRecordsProps {
   votes: VoteRecord[];
+  ccVotes?: VoteRecord[];
 }
 
-function formatAda(ada: number): string {
+/**
+ * Convert lovelace string to formatted ADA string
+ * 1 ADA = 1,000,000 lovelace
+ */
+function lovelaceToAda(lovelace: string | number): string {
+  const lovelaceNum = typeof lovelace === "string" ? Number(lovelace) : lovelace;
+  if (isNaN(lovelaceNum) || lovelaceNum === 0) return "0";
+  const adaValue = Math.round(lovelaceNum / 1_000_000);
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
-  }).format(ada);
+  }).format(adaValue);
 }
 
 function getVoteBadgeClasses(vote: VoteRecord["vote"]): string {
@@ -46,26 +54,62 @@ function getVoteBadgeClasses(vote: VoteRecord["vote"]): string {
   }
 }
 
-export function VotingRecords({ votes }: VotingRecordsProps) {
+function getVoterTypeBadgeClasses(voterType: string): string {
+  switch (voterType) {
+    case "DRep":
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    case "SPO":
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+    case "CC":
+      return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+    default:
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  }
+}
+
+export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [voteFilter, setVoteFilter] = useState<string>("all");
+  const [voterTypeFilter, setVoterTypeFilter] = useState<string>("all");
 
-  const filteredVotes = votes.filter((vote) => {
+  // Combine all votes into a single array
+  const allVotes = [...votes, ...ccVotes];
+
+  // Get unique voter types from the data
+  const availableVoterTypes = Array.from(
+    new Set(allVotes.map((v) => v.voterType).filter(Boolean))
+  ) as string[];
+
+  const filteredVotes = allVotes.filter((vote) => {
     const matchesSearch =
       searchQuery === "" ||
-      vote.drepName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vote.drepId.toLowerCase().includes(searchQuery.toLowerCase());
+      vote.drepName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vote.drepId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vote.voterId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vote.voterName?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesVote = voteFilter === "all" || vote.vote.toLowerCase() === voteFilter;
 
-    return matchesSearch && matchesVote;
+    const matchesVoterType =
+      voterTypeFilter === "all" || vote.voterType === voterTypeFilter;
+
+    return matchesSearch && matchesVote && matchesVoterType;
   });
 
   const voteStats = {
-    total: votes.length,
-    yes: votes.filter((v) => v.vote === "Yes").length,
-    no: votes.filter((v) => v.vote === "No").length,
-    abstain: votes.filter((v) => v.vote === "Abstain").length,
+    total: allVotes.length,
+    yes: allVotes.filter((v) => v.vote === "Yes").length,
+    no: allVotes.filter((v) => v.vote === "No").length,
+    abstain: allVotes.filter((v) => v.vote === "Abstain").length,
+  };
+
+  // Get display name and ID for a vote record
+  const getVoterDisplayName = (vote: VoteRecord): string => {
+    return vote.voterName || vote.drepName || vote.voterId || vote.drepId || "Unknown";
+  };
+
+  const getVoterDisplayId = (vote: VoteRecord): string => {
+    return vote.voterId || vote.drepId || "";
   };
 
   return (
@@ -73,7 +117,7 @@ export function VotingRecords({ votes }: VotingRecordsProps) {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold mb-2">Voting Records</h2>
-        <p className="text-muted-foreground">Individual DRep votes and their rationale</p>
+        <p className="text-muted-foreground">Individual votes and their rationale</p>
       </div>
 
       {/* Stats Grid */}
@@ -98,16 +142,33 @@ export function VotingRecords({ votes }: VotingRecordsProps) {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by DRep name or ID..."
+              placeholder="Search by name or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
           </div>
+          <Select value={voterTypeFilter} onValueChange={setVoterTypeFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by voter type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Voter Types</SelectItem>
+              {availableVoterTypes.includes("DRep") && (
+                <SelectItem value="DRep">DRep</SelectItem>
+              )}
+              {availableVoterTypes.includes("SPO") && (
+                <SelectItem value="SPO">SPO</SelectItem>
+              )}
+              {availableVoterTypes.includes("CC") && (
+                <SelectItem value="CC">CC</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
           <Select value={voteFilter} onValueChange={setVoteFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Filter by vote" />
@@ -128,9 +189,10 @@ export function VotingRecords({ votes }: VotingRecordsProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>DRep</TableHead>
+                <TableHead>Voter</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Vote</TableHead>
-                <TableHead>Voting Power</TableHead>
+                <TableHead>Live Voting Power</TableHead>
                 <TableHead>Voted At</TableHead>
                 <TableHead className="text-right">Rationale</TableHead>
               </TableRow>
@@ -138,88 +200,104 @@ export function VotingRecords({ votes }: VotingRecordsProps) {
             <TableBody>
               {filteredVotes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
                     No voting records found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredVotes.map((vote, index) => (
-                  <TableRow key={`${vote.drepId}-${index}`} className="hover:bg-muted/50">
-                    <TableCell>
-                      <div>
-                        <div className="font-semibold">{vote.drepName}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{vote.drepId.slice(0, 20)}...</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
-                        {vote.vote}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-semibold">{formatAda(vote.votingPowerAda)}</div>
-                        <div className="text-xs text-muted-foreground">{vote.votingPower} ADA</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(vote.votedAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {vote.anchorUrl ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="sm" variant="ghost">
-                                <FileText className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl max-h-[80vh]">
-                              <DialogHeader>
-                                <DialogTitle>Voting Rationale - {vote.drepName}</DialogTitle>
-                                <DialogDescription>
-                                  View the detailed reasoning for this vote
-                                </DialogDescription>
-                              </DialogHeader>
-                              <ScrollArea className="h-[500px] w-full rounded-md border p-4">
-                                <div className="space-y-4">
-                                  <div className="flex items-center justify-between mb-4">
-                                    <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
-                                      {vote.vote}
-                                    </Badge>
-                                    <a
-                                      href={vote.anchorUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:underline text-sm flex items-center gap-1"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      Open on IPFS
-                                    </a>
-                                  </div>
-                                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                    {getMockRationale(vote.drepName, vote.vote)}
-                                  </div>
-                                </div>
-                              </ScrollArea>
-                            </DialogContent>
-                          </Dialog>
-                          <a
-                            href={vote.anchorUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
+                filteredVotes.map((vote, index) => {
+                  const isCC = vote.voterType === "CC";
+                  const voterName = getVoterDisplayName(vote);
+                  const voterId = getVoterDisplayId(vote);
+
+                  return (
+                    <TableRow key={`${voterId}-${index}`} className="hover:bg-muted/50">
+                      <TableCell>
+                        <div>
+                          <div className="font-semibold">{voterName}</div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {voterId.slice(0, 20)}...
+                          </div>
                         </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No rationale</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getVoterTypeBadgeClasses(vote.voterType || "")}>
+                          {vote.voterType || "Unknown"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
+                          {vote.vote}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {!isCC ? (
+                          <div className="font-semibold">
+                            {lovelaceToAda(vote.votingPower)} ADA
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(vote.votedAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {vote.anchorUrl ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button size="sm" variant="ghost">
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-3xl max-h-[80vh]">
+                                <DialogHeader>
+                                  <DialogTitle>Voting Rationale - {voterName}</DialogTitle>
+                                  <DialogDescription>
+                                    View the detailed reasoning for this vote
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <ScrollArea className="h-[500px] w-full rounded-md border p-4">
+                                  <div className="space-y-4">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <Badge variant="outline" className={getVoteBadgeClasses(vote.vote)}>
+                                        {vote.vote}
+                                      </Badge>
+                                      <a
+                                        href={vote.anchorUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline text-sm flex items-center gap-1"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Open on IPFS
+                                      </a>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                      {getMockRationale(voterName, vote.vote)}
+                                    </div>
+                                  </div>
+                                </ScrollArea>
+                              </DialogContent>
+                            </Dialog>
+                            <a
+                              href={vote.anchorUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No rationale</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
