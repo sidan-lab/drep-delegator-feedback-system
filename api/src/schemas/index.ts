@@ -37,17 +37,17 @@
  *       type: object
  *       properties:
  *         year:
- *           type: string
+ *           type: number
  *           description: Year of the NCL data
- *           example: "2024"
+ *           example: 2024
  *         currentValue:
  *           type: string
- *           description: Current NCL value
- *           example: "1234.56"
+ *           description: Current treasury withdrawals in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "1234560000"
  *         targetValue:
  *           type: string
- *           description: Target NCL value
- *           example: "5000.00"
+ *           description: Net change limit in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "5000000000"
  *     GetProposalListReponse:
  *       type: array
  *       items:
@@ -180,12 +180,8 @@
  *                 example: "Yes"
  *               votingPower:
  *                 type: string
- *                 description: Voting power
- *                 example: "1000000"
- *               votingPowerAda:
- *                 type: number
- *                 description: Voting power in ADA
- *                 example: 1000000
+ *                 description: Voting power in lovelace (1 ADA = 1,000,000 lovelace)
+ *                 example: "1000000000000"
  *               anchorUrl:
  *                 type: string
  *                 description: Anchor URL for vote metadata
@@ -224,12 +220,8 @@
  *                 example: "Yes"
  *               votingPower:
  *                 type: string
- *                 description: Voting power
- *                 example: "1"
- *               votingPowerAda:
- *                 type: number
- *                 description: Voting power in ADA
- *                 example: 1
+ *                 description: Voting power in lovelace (1 ADA = 1,000,000 lovelace). CC members may not have voting power.
+ *                 example: "1000000"
  *               anchorUrl:
  *                 type: string
  *                 description: Anchor URL for vote metadata
@@ -242,6 +234,30 @@
  *                 type: string
  *                 description: Timestamp when vote was cast
  *                 example: "2024-01-15T11:00:00Z"
+ *     NCLYearData:
+ *       type: object
+ *       properties:
+ *         year:
+ *           type: number
+ *           description: Calendar year
+ *           example: 2025
+ *         currentValue:
+ *           type: string
+ *           description: Current treasury withdrawals in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "1234560000000"
+ *         targetValue:
+ *           type: string
+ *           description: Net change limit in lovelace (1 ADA = 1,000,000 lovelace)
+ *           example: "5000000000000"
+ *         epoch:
+ *           type: number
+ *           description: Epoch when this NCL record was last updated
+ *           example: 520
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: ISO 8601 timestamp when the record was last updated
+ *           example: "2025-01-15T10:30:00Z"
  *     ErrorResponse:
  *       type: object
  *       properties:

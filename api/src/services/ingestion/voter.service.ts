@@ -5,7 +5,6 @@
 
 import type { Prisma } from "@prisma/client";
 import { koiosGet, koiosPost } from "../koios";
-import { lovelaceToAda } from "./utils";
 import type {
   KoiosDrep,
   KoiosDrepVotingPower,
@@ -145,9 +144,9 @@ export async function ensureVoterExists(
 
 // Cache for API responses to avoid duplicate calls within a transaction
 const drepInfoCache = new Map<string, KoiosDrep | undefined>();
-const drepVotingPowerCache = new Map<string, number>();
+const drepVotingPowerCache = new Map<string, bigint>();
 const spoInfoCache = new Map<string, KoiosSpo | undefined>();
-const spoVotingPowerCache = new Map<string, number>();
+const spoVotingPowerCache = new Map<string, bigint>();
 
 /**
  * Ensures a DRep exists, creating if needed and updating voting power
@@ -190,7 +189,8 @@ async function ensureDrepExists(
       }
     );
     const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
-    votingPower = lovelaceToAda(votingPowerLovelace) || 0;
+    // Store voting power in lovelace as BigInt (1 ADA = 1,000,000 lovelace)
+    votingPower = votingPowerLovelace ? BigInt(votingPowerLovelace) : BigInt(0);
     drepVotingPowerCache.set(cacheKey, votingPower);
   }
 
@@ -304,7 +304,8 @@ async function ensureSpoExists(
       }
     );
     const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
-    votingPower = lovelaceToAda(votingPowerLovelace) || 0;
+    // Store voting power in lovelace as BigInt (1 ADA = 1,000,000 lovelace)
+    votingPower = votingPowerLovelace ? BigInt(votingPowerLovelace) : BigInt(0);
     spoVotingPowerCache.set(cacheKey, votingPower);
   }
 
@@ -501,4 +502,173 @@ export async function ingestSpo(
  */
 export async function ingestCc(ccId: string, prisma: Prisma.TransactionClient) {
   return ensureCcExists(ccId, prisma);
+}
+
+/**
+ * Result of syncing voter voting powers
+ */
+export interface SyncVoterPowerResult {
+  dreps: {
+    total: number;
+    updated: number;
+    failed: number;
+    errors: string[];
+  };
+  spos: {
+    total: number;
+    updated: number;
+    failed: number;
+    errors: string[];
+  };
+  epoch: number;
+}
+
+/**
+ * Syncs voting power for all DReps and SPOs in the database
+ * Updates their voting power based on the latest epoch data from Koios
+ */
+export async function syncAllVoterVotingPower(
+  prisma: Prisma.TransactionClient
+): Promise<SyncVoterPowerResult> {
+  const currentEpoch = await getCurrentEpoch();
+
+  console.log(
+    `[Voter Service] Starting voting power sync for epoch ${currentEpoch}...`
+  );
+
+  // Sync DReps
+  const drepResult = await syncDrepVotingPower(prisma, currentEpoch);
+
+  // Sync SPOs
+  const spoResult = await syncSpoVotingPower(prisma, currentEpoch);
+
+  return {
+    dreps: drepResult,
+    spos: spoResult,
+    epoch: currentEpoch,
+  };
+}
+
+/**
+ * Syncs voting power for all DReps in the database
+ * Only fetches voting power for DReps that exist in the database
+ */
+async function syncDrepVotingPower(
+  prisma: Prisma.TransactionClient,
+  epoch: number
+): Promise<{ total: number; updated: number; failed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let updated = 0;
+  let failed = 0;
+
+  // Get all DReps from database
+  const dreps = await prisma.drep.findMany({
+    select: { drepId: true },
+  });
+
+  if (dreps.length === 0) {
+    console.log(`[Voter Service] No DReps in database to sync`);
+    return { total: 0, updated: 0, failed: 0, errors: [] };
+  }
+
+  console.log(
+    `[Voter Service] Syncing voting power for ${dreps.length} DReps...`
+  );
+
+  // Fetch voting power for each DRep individually
+  // This is more efficient when we have fewer DReps in DB than on-chain
+  for (const drep of dreps) {
+    try {
+      const votingPowerHistory = await koiosGet<KoiosDrepVotingPower[]>(
+        "/drep_voting_power_history",
+        {
+          _epoch_no: epoch,
+          _drep_id: drep.drepId,
+        }
+      );
+
+      const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
+
+      if (votingPowerLovelace) {
+        const newVotingPower = BigInt(votingPowerLovelace);
+        await prisma.drep.update({
+          where: { drepId: drep.drepId },
+          data: { votingPower: newVotingPower },
+        });
+        updated++;
+      }
+      // If no voting power found, the DRep might be inactive - skip update
+    } catch (error: any) {
+      failed++;
+      errors.push(`DRep ${drep.drepId}: ${error.message}`);
+    }
+  }
+
+  console.log(
+    `[Voter Service] DRep sync complete: ${updated} updated, ${failed} failed`
+  );
+
+  return { total: dreps.length, updated, failed, errors };
+}
+
+/**
+ * Syncs voting power for all SPOs in the database
+ * Only fetches voting power for SPOs that exist in the database
+ */
+async function syncSpoVotingPower(
+  prisma: Prisma.TransactionClient,
+  epoch: number
+): Promise<{ total: number; updated: number; failed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let updated = 0;
+  let failed = 0;
+
+  // Get all SPOs from database
+  const spos = await prisma.sPO.findMany({
+    select: { poolId: true },
+  });
+
+  if (spos.length === 0) {
+    console.log(`[Voter Service] No SPOs in database to sync`);
+    return { total: 0, updated: 0, failed: 0, errors: [] };
+  }
+
+  console.log(
+    `[Voter Service] Syncing voting power for ${spos.length} SPOs...`
+  );
+
+  // Fetch voting power for each SPO individually
+  // This is more efficient when we have fewer SPOs in DB than on-chain
+  for (const spo of spos) {
+    try {
+      const votingPowerHistory = await koiosGet<KoiosSpoVotingPower[]>(
+        "/pool_voting_power_history",
+        {
+          _epoch_no: epoch,
+          _pool_bech32: spo.poolId,
+        }
+      );
+
+      const votingPowerLovelace = votingPowerHistory?.[0]?.amount;
+
+      if (votingPowerLovelace) {
+        const newVotingPower = BigInt(votingPowerLovelace);
+        await prisma.sPO.update({
+          where: { poolId: spo.poolId },
+          data: { votingPower: newVotingPower },
+        });
+        updated++;
+      }
+      // If no voting power found, the SPO might be inactive - skip update
+    } catch (error: any) {
+      failed++;
+      errors.push(`SPO ${spo.poolId}: ${error.message}`);
+    }
+  }
+
+  console.log(
+    `[Voter Service] SPO sync complete: ${updated} updated, ${failed} failed`
+  );
+
+  return { total: spos.length, updated, failed, errors };
 }
