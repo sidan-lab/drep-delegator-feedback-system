@@ -1,4 +1,5 @@
 import { useWallet } from "@meshsdk/react";
+import { BrowserWallet, type Wallet } from "@meshsdk/core";
 import {
   Dialog,
   DialogContent,
@@ -8,50 +9,31 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
-import { Wallet, LogOut, ExternalLink } from "lucide-react";
+import { Wallet as WalletIcon, LogOut, ExternalLink, ChevronRight } from "lucide-react";
 
 interface ConnectWalletModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Supported wallets for Cardano governance
-const SUPPORTED_WALLETS = [
-  { name: "eternl", displayName: "Eternl" },
-  { name: "nami", displayName: "Nami" },
-  { name: "lace", displayName: "Lace" },
-  { name: "flint", displayName: "Flint" },
-  { name: "typhoncip30", displayName: "Typhon" },
-  { name: "yoroi", displayName: "Yoroi" },
-  { name: "gerowallet", displayName: "GeroWallet" },
-  { name: "nufi", displayName: "NuFi" },
-];
-
 export function ConnectWalletModal({
   isOpen,
   onClose,
 }: ConnectWalletModalProps) {
   const { connect, disconnect, connected, name, wallet } = useWallet();
-  const [availableWallets, setAvailableWallets] = useState<string[]>([]);
+  const [availableWallets, setAvailableWallets] = useState<Wallet[]>([]);
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Detect available wallets
+  // Detect all available CIP-30 wallets using Mesh SDK
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const detected: string[] = [];
-      const cardano = (window as unknown as { cardano?: Record<string, unknown> }).cardano;
-      if (cardano) {
-        SUPPORTED_WALLETS.forEach(({ name }) => {
-          // Check if wallet extension is installed
-          if (cardano[name]) {
-            detected.push(name);
-          }
-        });
-      }
-      setAvailableWallets(detected);
-    }
+    const loadWallets = async () => {
+      const wallets = await BrowserWallet.getAvailableWallets();
+      // Sort alphabetically by name
+      setAvailableWallets(wallets.sort((a, b) => a.name.localeCompare(b.name)));
+    };
+    loadWallets();
   }, [isOpen]);
 
   // Get wallet address when connected
@@ -107,7 +89,7 @@ export function ConnectWalletModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
+            <WalletIcon className="h-5 w-5" />
             {connected ? "Wallet Connected" : "Connect Wallet"}
           </DialogTitle>
           <DialogDescription>
@@ -190,24 +172,33 @@ export function ConnectWalletModal({
                 </div>
               </div>
             ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Select a wallet to connect:
-                </p>
-                {SUPPORTED_WALLETS.filter((w) =>
-                  availableWallets.includes(w.name)
-                ).map((wallet) => (
-                  <Button
-                    key={wallet.name}
-                    variant="outline"
-                    className="w-full justify-start h-12"
-                    onClick={() => handleConnect(wallet.name)}
+              <div className="space-y-2">
+                {availableWallets.map((detectedWallet) => (
+                  <button
+                    key={detectedWallet.id}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border bg-secondary/30 hover:bg-secondary/60 transition-colors disabled:opacity-50"
+                    onClick={() => handleConnect(detectedWallet.id)}
                     disabled={isLoading}
                   >
-                    <span className="capitalize">{wallet.displayName}</span>
-                  </Button>
+                    {detectedWallet.icon ? (
+                      <img
+                        src={detectedWallet.icon}
+                        alt={detectedWallet.name}
+                        className="w-10 h-10 rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                        <WalletIcon className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">{detectedWallet.name}</div>
+                      <div className="text-xs text-muted-foreground">Connect to start voting</div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </button>
                 ))}
-              </>
+              </div>
             )}
           </div>
         )}

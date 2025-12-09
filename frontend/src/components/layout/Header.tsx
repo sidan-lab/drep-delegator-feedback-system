@@ -8,7 +8,7 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Cardano Governance
+              Cardano Governance All-In-One Platform
             </span>
           </Link>
 

@@ -8,10 +8,38 @@ import { Progress } from "@/components/ui/progress";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { setTypeFilter } from "@/store/governanceSlice";
 import { Search } from "lucide-react";
+import { VoteButtons } from "@/components/governance/VoteButtons";
 import type {
   GovernanceAction,
   GovernanceActionType,
 } from "@/types/governance";
+
+/**
+ * Parse proposal hash to extract txHash and certIndex
+ */
+function parseProposalHash(hash: string): { txHash: string; certIndex: number } | null {
+  if (!hash) return null;
+
+  // Handle txHash:certIndex format (API format)
+  if (hash.includes(":")) {
+    const [txHash, certIndexStr] = hash.split(":");
+    const certIndex = parseInt(certIndexStr, 10);
+    if (txHash && !isNaN(certIndex)) {
+      return { txHash, certIndex };
+    }
+  }
+
+  // Handle txHash#certIndex format (alternative format)
+  if (hash.includes("#")) {
+    const [txHash, certIndexStr] = hash.split("#");
+    const certIndex = parseInt(certIndexStr, 10);
+    if (txHash && !isNaN(certIndex)) {
+      return { txHash, certIndex };
+    }
+  }
+
+  return null;
+}
 
 function formatHash(hash: string): string {
   if (hash.length <= 18) return hash;
@@ -394,9 +422,28 @@ export function GovernanceTable() {
                 </div>
 
                 {/* Footer */}
-                <div className="mt-4 pt-4 border-t border-border/50 flex justify-between text-xs text-muted-foreground">
-                  <span>Submission: Epoch {action.submissionEpoch}</span>
-                  <span>Expiry: Epoch {action.expiryEpoch}</span>
+                <div className="mt-4 pt-4 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
+                  <div className="text-xs text-muted-foreground space-x-4">
+                    <span>Submission: Epoch {action.submissionEpoch}</span>
+                    <span>Expiry: Epoch {action.expiryEpoch}</span>
+                  </div>
+
+                  {/* Voting buttons for active proposals */}
+                  {action.status === "Active" && (() => {
+                    const parsed = parseProposalHash(action.hash);
+                    if (parsed) {
+                      return (
+                        <VoteButtons
+                          txHash={parsed.txHash}
+                          certIndex={parsed.certIndex}
+                          proposalTitle={action.title}
+                          status={action.status}
+                          compact
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </Card>
             ))
