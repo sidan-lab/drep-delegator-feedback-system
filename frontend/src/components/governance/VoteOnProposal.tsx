@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useWallet } from "@meshsdk/react";
-import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshTxBuilder, hashDrepAnchor } from "@meshsdk/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,11 +93,28 @@ export function VoteOnProposal({
       // Prepare anchor if URL provided
       let anchor = undefined;
       if (anchorUrl.trim()) {
-        // For now, use a placeholder hash - in production, you'd hash the actual content
-        anchor = {
-          anchorUrl: anchorUrl.trim(),
-          anchorDataHash: "0000000000000000000000000000000000000000000000000000000000000000",
-        };
+        const trimmedUrl = anchorUrl.trim();
+
+        // Fetch the content from the URL and compute Blake2b-256 hash
+        try {
+          const response = await fetch(trimmedUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch anchor content: ${response.status}`);
+          }
+          const contentText = await response.text();
+          const contentJson = JSON.parse(contentText);
+          const anchorDataHash = hashDrepAnchor(contentJson);
+
+          anchor = {
+            anchorUrl: trimmedUrl,
+            anchorDataHash,
+          };
+        } catch (fetchError) {
+          throw new Error(
+            `Failed to fetch or hash anchor content: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. ` +
+            `Please ensure the URL is accessible and contains valid JSON.`
+          );
+        }
       }
 
       // Build the transaction
@@ -154,17 +171,22 @@ export function VoteOnProposal({
 
   const getVoteButtonClass = (vote: VoteChoice) => {
     const baseClass = "flex-1 h-16 text-lg font-semibold transition-all";
-    if (selectedVote === vote) {
-      switch (vote) {
-        case "Yes":
-          return `${baseClass} bg-emerald-500 hover:bg-emerald-600 text-white`;
-        case "No":
-          return `${baseClass} bg-red-500 hover:bg-red-600 text-white`;
-        case "Abstain":
-          return `${baseClass} bg-gray-500 hover:bg-gray-600 text-white`;
-      }
+    const selectedClass = "ring-2 ring-offset-2 ring-offset-background";
+
+    switch (vote) {
+      case "Yes":
+        return selectedVote === vote
+          ? `${baseClass} ${selectedClass} bg-emerald-500 hover:bg-emerald-600 text-white ring-emerald-500`
+          : `${baseClass} bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30`;
+      case "No":
+        return selectedVote === vote
+          ? `${baseClass} ${selectedClass} bg-red-500 hover:bg-red-600 text-white ring-red-500`
+          : `${baseClass} bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30`;
+      case "Abstain":
+        return selectedVote === vote
+          ? `${baseClass} ${selectedClass} bg-gray-500 hover:bg-gray-600 text-white ring-gray-500`
+          : `${baseClass} bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 border-gray-500/30`;
     }
-    return baseClass;
   };
 
   if (!isActive) {
