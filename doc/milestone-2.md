@@ -4,6 +4,18 @@
 
 This milestone delivers the development of web platform, showing governance action and build with voting feature and visualization of mock delegator sentiment data for Cardano governance actions. DReps can now view aggregated feedback from their delegators on each governance proposal, helping them make more informed voting decisions that reflect their community's preferences.
 
+## UIUX Design of the Governance Platform
+
+We would like to position the Governance Platform to be an all-in-one governance platform covering governance action viewing, voting on governance action, and viewing delegator sentiment. There are 2 main pages related to the platform - Landing page and Proposal Details page.
+
+### Landing Page
+
+The landing page consists of (1) High-level summary of cardano governance actions status; (2) List of active and historical governance actions. For the high-level summary, it shows the total number of active, ratified, enacted, expired/ closed proposal. Besides, the NCL status of the current year is also displayed. Users can filter the the active and historical governance actions by governance action type (e.g. Info Action, Treasury Withdrawals, New Constitution, Hard Fork Initiation, Protocol Parameter Change, No Confidence and Update Committe) or proposal title. For each governance action, the relevant proposal information is displayed (e.g. Proposal title, Type of governance action, Yes %, No %, No. of Yes vote count, No. of No vote count, Submission and expiry epoch, etc.). The irrelevant voter type will be blurred based on governance action types. The design aims at providing user with an overview of Cardano governance in general and overview of each proposal. Some of the figures below show the UI of it.
+
+### Proposal Details Page
+
+The proposal details page consists of the detailed description, rationale, current voting per different voter types, delegator sentiment, and individual voting records per proposal. Some of the figures below show the UI of it. The design aims at providing user with a detailed information per governance action and helping user to make more informed governance voting. Some of the figures below show the UI of it.
+
 ## Expected Output: Governance Action Voting
 
 ### Vote Types
@@ -99,7 +111,7 @@ npm run dev
 
 ### Run the frontend
 
-Define your own .env under the API folder based on the .env.example file
+Define your own .env under the frontend folder based on the .env.example file
 
 Open another terminal and run below commands to start and run your frontend in your local environment
 
@@ -110,4 +122,4 @@ npm run build
 npm run dev
 ```
 
-Once the frontned is running in your terminal, you could open it in your browser and start trying the application locally
+Once the frontend is running in your terminal, you could open it in your browser and start trying the application locally
