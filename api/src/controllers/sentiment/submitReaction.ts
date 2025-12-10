@@ -13,7 +13,6 @@ export const submitReaction = async (req: Request, res: Response) => {
       guildId,
       guildName,
       channelId,
-      channelName,
       discordUserId,
       discordUsername,
       sentiment,

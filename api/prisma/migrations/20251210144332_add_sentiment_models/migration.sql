@@ -179,4 +179,10 @@ ALTER TABLE "DiscordGuild" ADD CONSTRAINT "DiscordGuild_drepId_fkey" FOREIGN KEY
 ALTER TABLE "DiscordReaction" ADD CONSTRAINT "DiscordReaction_guildId_drepId_fkey" FOREIGN KEY ("guildId", "drepId") REFERENCES "DiscordGuild"("guildId", "drepId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "DiscordReaction" ADD CONSTRAINT "DiscordReaction_drepId_discordUserId_fkey" FOREIGN KEY ("drepId", "discordUserId") REFERENCES "VerifiedDelegator"("drepId", "discordUserId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "DiscordComment" ADD CONSTRAINT "DiscordComment_guildId_drepId_fkey" FOREIGN KEY ("guildId", "drepId") REFERENCES "DiscordGuild"("guildId", "drepId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DiscordComment" ADD CONSTRAINT "DiscordComment_drepId_discordUserId_fkey" FOREIGN KEY ("drepId", "discordUserId") REFERENCES "VerifiedDelegator"("drepId", "discordUserId") ON DELETE RESTRICT ON UPDATE CASCADE;

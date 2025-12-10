@@ -13,7 +13,6 @@ export const submitComment = async (req: Request, res: Response) => {
       guildId,
       guildName,
       channelId,
-      channelName,
       discordUserId,
       discordUsername,
       messageId,
