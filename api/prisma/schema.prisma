@@ -193,16 +193,146 @@ model NCL {
   updatedAt DateTime  @updatedAt
 }
 
-// Delegators Engagement Types - To be implemented in future releases
+// Delegators Engagement Types - Discord Community Sentiment
 
-// model OffchainVote {
-//   proposal   Proposal  @relation(fields: [proposalId], references: [id])
-//   proposalId Int
-//   user       User      @relation(fields: [userId], references: [id])
-//   userId     String
-//   vote       VoteType?
-//   createdAt  DateTime? @default(now())
-//   updatedAt  DateTime? @updatedAt
+enum SentimentType {
+  YES
+  NO
+  ABSTAIN
+}
 
-//   @@id([proposalId, userId])
-// }
+// DRep Registration with admin approval
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DrepRegistration {
+  id              String             @id @default(uuid())
+  drepId          String             @unique // DRep ID (CIP-129 format)
+  drepName        String?            // Display name
+  contactEmail    String?            // Contact email for communication
+  discordServerId String?            // Primary Discord server ID
+  status          RegistrationStatus @default(PENDING)
+  rejectionReason String?            // Reason if rejected
+  apiKey          String?            @unique // Generated only when APPROVED
+  approvedAt      DateTime?
+  approvedBy      String?            // Admin who approved
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  guilds              DiscordGuild[]
+  verifiedDelegators  VerifiedDelegator[]
+
+  @@index([apiKey])
+  @@index([status])
+}
+
+// Verified delegators (managed by DRep)
+model VerifiedDelegator {
+  id                 String    @id @default(uuid())
+  drepId             String    // Which DRep verified this user
+  discordUserId      String    // Discord user ID
+  discordUsername    String    // Discord username (for display)
+  stakeAddress       String    // Cardano stake address (stake1...)
+  liveStake          BigInt?   // Last known stake (in lovelace)
+  isActive           Boolean   @default(true) // DRep can deactivate
+  deactivatedAt      DateTime? // When eliminated
+  deactivationReason String?   // Why (e.g., "Changed delegation")
+  lastVerifiedAt     DateTime  @default(now()) // Last time delegation was confirmed
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  drepRegistration   DrepRegistration @relation(fields: [drepId], references: [drepId])
+  reactions          DiscordReaction[]
+  comments           DiscordComment[]
+
+  @@unique([drepId, discordUserId])
+  @@unique([drepId, stakeAddress])
+  @@index([drepId])
+  @@index([discordUserId])
+  @@index([isActive])
+}
+
+// Discord guilds (servers) registered to collect sentiment for a DRep
+model DiscordGuild {
+  id                   String   @id @default(uuid())
+  guildId              String   // Discord server ID
+  guildName            String   // Discord server name
+  drepId               String   // DRep ID this guild collects sentiment for (CIP-129 format)
+  governanceChannelId  String?  // Optional specific channel for governance discussions
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  drepRegistration     DrepRegistration @relation(fields: [drepId], references: [drepId])
+  reactions            DiscordReaction[]
+  comments             DiscordComment[]
+
+  @@unique([guildId, drepId])
+  @@index([drepId])
+}
+
+// Sentiment reactions from Discord users
+model DiscordReaction {
+  id               String        @id @default(uuid())
+  proposalId       String        // Cardano governance action ID
+  drepId           String        // DRep ID receiving feedback
+  guildId          String        // Discord server ID
+  channelId        String        // Discord channel ID
+  discordUserId    String        // Discord user ID
+  discordUsername  String        // Discord username (for display)
+  sentiment        SentimentType // YES, NO, ABSTAIN
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  guild            DiscordGuild  @relation(fields: [guildId, drepId], references: [guildId, drepId])
+  delegator        VerifiedDelegator? @relation(fields: [drepId, discordUserId], references: [drepId, discordUserId])
+
+  // One reaction per user per proposal per DRep guild
+  @@unique([proposalId, drepId, guildId, discordUserId])
+  @@index([proposalId])
+  @@index([drepId])
+  @@index([guildId])
+}
+
+// Comments from Discord users on proposals
+model DiscordComment {
+  id               String         @id @default(uuid())
+  proposalId       String         // Cardano governance action ID
+  drepId           String         // DRep ID receiving feedback
+  guildId          String         // Discord server ID
+  channelId        String         // Discord channel ID
+  discordUserId    String         // Discord user ID
+  discordUsername  String         // Discord username (for display)
+  messageId        String         @unique // Discord message ID (to prevent duplicates)
+  content          String         // Comment content
+  sentiment        SentimentType? // Optional detected sentiment
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  guild            DiscordGuild   @relation(fields: [guildId, drepId], references: [guildId, drepId])
+  delegator        VerifiedDelegator? @relation(fields: [drepId, discordUserId], references: [drepId, discordUserId])
+
+  @@index([proposalId])
+  @@index([drepId])
+  @@index([guildId])
+}
+
+// Aggregated sentiment summary per proposal per DRep (for quick frontend queries)
+model ProposalSentiment {
+  id            String   @id @default(uuid())
+  proposalId    String   // Cardano governance action ID
+  drepId        String   // DRep ID
+  yesCount      Int      @default(0)
+  noCount       Int      @default(0)
+  abstainCount  Int      @default(0)
+  commentCount  Int      @default(0)
+  lastUpdated   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([proposalId, drepId])
+  @@index([proposalId])
+  @@index([drepId])
+}

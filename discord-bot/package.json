@@ -1,0 +1,31 @@
+{
+  "name": "drep-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for collecting delegator sentiment on Cardano governance proposals",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [
+    "cardano",
+    "governance",
+    "drep",
+    "discord",
+    "bot"
+  ],
+  "author": "SIDAN Lab",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}
