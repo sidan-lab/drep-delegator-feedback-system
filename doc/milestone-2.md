@@ -119,7 +119,7 @@ Open another terminal and run below commands to start and run your frontend in y
 cd frontend
 npm install
 npm run build
-npm run dev
+npm npm run build && npm start
 ```
 
 Once the frontend is running in your terminal, you could open it in your browser and start trying the application locally
