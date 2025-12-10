@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { VotingRecords } from "@/components/VotingRecords";
-import { VoteOnProposal } from "@/components/governance";
+import { VoteOnProposal, DelegatorSentiment } from "@/components/governance";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { ArrowLeft } from "lucide-react";
@@ -300,6 +300,9 @@ export default function GovernanceDetail() {
                   </div>
                 </Card>
               )}
+
+              {/* Delegator Sentiment - Only visible to DRep wallet holders */}
+              <DelegatorSentiment proposalId={selectedAction.hash} />
             </div>
 
             {/* Right Column - Sidebar */}
