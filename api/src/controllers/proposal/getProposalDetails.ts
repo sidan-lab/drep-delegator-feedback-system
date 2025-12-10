@@ -7,6 +7,7 @@ import {
   proposalWithVotesSelect,
 } from "../../libs/proposalMapper";
 import { GetProposalInfoResponse } from "../../responses";
+import { syncProposalDetailsOnRead } from "../../services/syncOnRead";
 
 const buildProposalLookup = (
   identifier: string
@@ -59,6 +60,11 @@ export const getProposalDetails = async (req: Request, res: Response) => {
         message: "A proposal_id path parameter is required",
       });
     }
+
+    // Trigger background sync for this proposal (non-blocking).
+    // The sync runs in the background while we return data from the database.
+    // New data will be available on the next request after sync completes.
+    syncProposalDetailsOnRead(proposalId);
 
     const lookup = buildProposalLookup(proposalId);
 

@@ -175,7 +175,7 @@ model OnchainVote { // get votes from https://api.koios.rest/api/v1/vote_list
   cc             CC?       @relation(fields: [ccId], references: [ccId])
   ccId           String?  // cc_hot_id from vote_list api response
 
-  @@unique([proposalId, voterType, drepId, spoId, ccId])
+  @@unique([txHash, proposalId, voterType, drepId, spoId, ccId])
 }
 
 // Net Change Limit (NCL) tracking for treasury withdrawals
