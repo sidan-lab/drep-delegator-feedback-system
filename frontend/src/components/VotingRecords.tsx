@@ -33,6 +33,7 @@ import { Search, ExternalLink, FileText } from "lucide-react";
 interface VotingRecordsProps {
   votes: VoteRecord[];
   ccVotes?: VoteRecord[];
+  proposalStatus?: "Active" | "Ratified" | "Enacted" | "Expired" | "Closed";
 }
 
 /**
@@ -226,7 +227,7 @@ function RationaleContent({ anchorUrl }: { anchorUrl: string }) {
   );
 }
 
-export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
+export function VotingRecords({ votes, ccVotes = [], proposalStatus }: VotingRecordsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [voteFilter, setVoteFilter] = useState<string>("all");
   const [voterTypeFilter, setVoterTypeFilter] = useState<string>("all");
@@ -234,27 +235,80 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
   // Combine all votes into a single array
   const allVotes = [...votes, ...ccVotes];
 
+  // Note: proposalStatus is available for future use (e.g., showing that votes
+  // cast after a proposal became inactive don't count toward the final decision)
+  // For now, we only mark older votes from the same voter as superseded.
+  void proposalStatus; // Suppress unused variable warning
+
+  // Find the latest vote for each voter (by voterId + voterType)
+  // This helps us identify which votes are superseded (older votes from same voter)
+  const latestVoteByVoter = new Map<string, { votedAt: string; txHash?: string }>();
+  allVotes.forEach((vote) => {
+    const voterId = vote.voterId || vote.drepId || "";
+    const voterType = vote.voterType || "DRep";
+    const key = `${voterType}:${voterId}`;
+    const votedAt = vote.votedAt ? new Date(vote.votedAt).getTime() : 0;
+
+    const existing = latestVoteByVoter.get(key);
+    const existingTime = existing?.votedAt ? new Date(existing.votedAt).getTime() : 0;
+
+    if (!existing || votedAt > existingTime) {
+      latestVoteByVoter.set(key, { votedAt: vote.votedAt, txHash: vote.anchorHash });
+    }
+  });
+
+  /**
+   * Check if a vote should be shown with strikethrough styling
+   * A vote is superseded if:
+   * 1. It's not the latest vote from this voter (same voter voted again later), OR
+   * 2. The proposal is no longer active (Ratified/Enacted/Expired/Closed) and vote was cast
+   *    after the status changed (though we can't easily detect this without status change timestamp)
+   *
+   * For now, we mark older votes from the same voter as superseded.
+   */
+  const isVoteSuperseded = (vote: VoteRecord): boolean => {
+    const voterId = vote.voterId || vote.drepId || "";
+    const voterType = vote.voterType || "DRep";
+    const key = `${voterType}:${voterId}`;
+    const votedAt = vote.votedAt ? new Date(vote.votedAt).getTime() : 0;
+
+    const latestVote = latestVoteByVoter.get(key);
+    if (!latestVote) return false;
+
+    const latestTime = latestVote.votedAt ? new Date(latestVote.votedAt).getTime() : 0;
+
+    // If this vote is older than the latest vote from the same voter, it's superseded
+    return votedAt < latestTime;
+  };
+
   // Get unique voter types from the data
   const availableVoterTypes = Array.from(
     new Set(allVotes.map((v) => v.voterType).filter(Boolean))
   ) as string[];
 
-  const filteredVotes = allVotes.filter((vote) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      vote.drepName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vote.drepId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vote.voterId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vote.voterName?.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredVotes = allVotes
+    .filter((vote) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        vote.drepName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vote.drepId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vote.voterId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vote.voterName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesVote =
-      voteFilter === "all" || vote.vote.toLowerCase() === voteFilter;
+      const matchesVote =
+        voteFilter === "all" || vote.vote.toLowerCase() === voteFilter;
 
-    const matchesVoterType =
-      voterTypeFilter === "all" || vote.voterType === voterTypeFilter;
+      const matchesVoterType =
+        voterTypeFilter === "all" || vote.voterType === voterTypeFilter;
 
-    return matchesSearch && matchesVote && matchesVoterType;
-  });
+      return matchesSearch && matchesVote && matchesVoterType;
+    })
+    // Sort by votedAt descending (latest first)
+    .sort((a, b) => {
+      const dateA = a.votedAt ? new Date(a.votedAt).getTime() : 0;
+      const dateB = b.votedAt ? new Date(b.votedAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
   const voteStats = {
     total: allVotes.length,
@@ -382,26 +436,37 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                   const isCC = vote.voterType === "CC";
                   const voterName = getVoterDisplayName(vote);
                   const voterId = getVoterDisplayId(vote);
+                  const isSuperseded = isVoteSuperseded(vote);
+
+                  // Strikethrough styling for superseded votes
+                  const supersededClass = isSuperseded ? "opacity-60" : "";
+                  const textStrikeClass = isSuperseded ? "line-through" : "";
 
                   return (
                     <TableRow
                       key={`${voterId}-${index}`}
-                      className="hover:bg-muted/50"
+                      className={`hover:bg-muted/50 ${supersededClass}`}
+                      title={isSuperseded ? "This vote was superseded by a newer vote from the same voter" : undefined}
                     >
                       <TableCell>
                         <div>
-                          <div className="font-semibold">{voterName}</div>
-                          <div className="text-xs text-muted-foreground font-mono">
+                          <div className={`font-semibold ${textStrikeClass}`}>{voterName}</div>
+                          <div className={`text-xs text-muted-foreground font-mono ${textStrikeClass}`}>
                             {voterId.slice(0, 20)}...
                           </div>
+                          {isSuperseded && (
+                            <div className="text-xs text-amber-500 mt-1">
+                              Superseded by newer vote
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={getVoterTypeBadgeClasses(
+                          className={`${getVoterTypeBadgeClasses(
                             vote.voterType || ""
-                          )}
+                          )} ${isSuperseded ? "opacity-60" : ""}`}
                         >
                           {vote.voterType || "Unknown"}
                         </Badge>
@@ -409,14 +474,14 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={getVoteBadgeClasses(vote.vote)}
+                          className={`${getVoteBadgeClasses(vote.vote)} ${isSuperseded ? "opacity-60 line-through" : ""}`}
                         >
                           {vote.vote}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         {!isCC ? (
-                          <div className="font-semibold">
+                          <div className={`font-semibold ${textStrikeClass}`}>
                             {lovelaceToAda(vote.votingPower)} ADA
                           </div>
                         ) : (
@@ -425,7 +490,7 @@ export function VotingRecords({ votes, ccVotes = [] }: VotingRecordsProps) {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className={`text-sm text-muted-foreground ${textStrikeClass}`}>
                         {new Date(vote.votedAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
