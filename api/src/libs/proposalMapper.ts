@@ -444,6 +444,21 @@ const resolveVoterName = (vote: VoteWithRelations): string | undefined => {
   return vote.cc?.memberName ?? undefined;
 };
 
+/**
+ * Get live voting power from the voter's table (DRep or SPO)
+ * This returns the current voting power, not the snapshot from when the vote was cast
+ */
+const getLiveVotingPower = (vote: VoteWithRelations): bigint | null => {
+  if (vote.voterType === VoterType.DREP && vote.drep && vote.drep.votingPower !== null) {
+    return vote.drep.votingPower;
+  }
+  if (vote.voterType === VoterType.SPO && vote.spo && vote.spo.votingPower !== null) {
+    return vote.spo.votingPower;
+  }
+  // CC members don't have voting power
+  return null;
+};
+
 const mapVoteRecord = (vote: VoteWithRelations): VoteRecord => {
   const record: VoteRecord = {
     voterType: formatVoterType(vote.voterType),
@@ -457,9 +472,10 @@ const mapVoteRecord = (vote: VoteWithRelations): VoteRecord => {
     record.voterName = voterName;
   }
 
-  // votingPower is stored as BigInt in lovelace, convert to string for API response
-  if (vote.votingPower !== null && vote.votingPower !== undefined) {
-    record.votingPower = vote.votingPower.toString();
+  // Get live voting power from DRep/SPO table (updated by cron job)
+  const liveVotingPower = getLiveVotingPower(vote);
+  if (liveVotingPower !== null && liveVotingPower !== undefined) {
+    record.votingPower = liveVotingPower.toString();
   }
 
   if (vote.anchorUrl) {

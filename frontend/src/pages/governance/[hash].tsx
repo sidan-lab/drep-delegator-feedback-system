@@ -512,6 +512,7 @@ export default function GovernanceDetail() {
               <VotingRecords
                 votes={selectedAction.votes || []}
                 ccVotes={selectedAction.ccVotes || []}
+                proposalStatus={selectedAction.status}
               />
             </div>
           )}
