@@ -61,17 +61,20 @@ const MOCK_SENTIMENT_DATA: DelegatorSentimentData = {
       id: "1",
       discordUserId: "123456789",
       discordUsername: "alice_cardano",
-      stakeAddress: "stake1u8pcjgmx7962w6hey5hhsd502araxp26kdtgagakhaqtq8squng76",
+      stakeAddress:
+        "stake1u8pcjgmx7962w6hey5hhsd502araxp26kdtgagakhaqtq8squng76",
       liveStake: "125000000000", // 125,000 ADA
       sentiment: "YES",
-      comment: "I support this proposal because it aligns with the long-term vision of Cardano governance. The treasury allocation seems reasonable.",
+      comment:
+        "I support this proposal because it aligns with the long-term vision of Cardano governance. The treasury allocation seems reasonable.",
       createdAt: "2024-12-09T10:30:00Z",
     },
     {
       id: "2",
       discordUserId: "234567890",
       discordUsername: "bob_delegator",
-      stakeAddress: "stake1u9a3t4rgddm4expj0ucyxkxqxkxjjxjx9ctgahgahgahgahqxy57n6",
+      stakeAddress:
+        "stake1u9a3t4rgddm4expj0ucyxkxqxkxjjxjx9ctgahgahgahgahqxy57n6",
       liveStake: "85000000000", // 85,000 ADA
       sentiment: "YES",
       createdAt: "2024-12-09T11:15:00Z",
@@ -80,17 +83,20 @@ const MOCK_SENTIMENT_DATA: DelegatorSentimentData = {
       id: "3",
       discordUserId: "345678901",
       discordUsername: "carol_stake",
-      stakeAddress: "stake1uxpdrerp8n8fevdnvf5f8xw8j9k8w8xn8w8xn8w8xn8w8xqcvd0zz",
+      stakeAddress:
+        "stake1uxpdrerp8n8fevdnvf5f8xw8j9k8w8xn8w8xn8w8xn8w8xqcvd0zz",
       liveStake: "250000000000", // 250,000 ADA
       sentiment: "NO",
-      comment: "I think the requested amount is too high. Would support a smaller allocation.",
+      comment:
+        "I think the requested amount is too high. Would support a smaller allocation.",
       createdAt: "2024-12-09T12:00:00Z",
     },
     {
       id: "4",
       discordUserId: "456789012",
       discordUsername: "dave_hodl",
-      stakeAddress: "stake1u8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqpnxm8r",
+      stakeAddress:
+        "stake1u8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqpnxm8r",
       liveStake: "45000000000", // 45,000 ADA
       sentiment: "ABSTAIN",
       comment: "Need more information before I can make a decision.",
@@ -100,20 +106,24 @@ const MOCK_SENTIMENT_DATA: DelegatorSentimentData = {
       id: "5",
       discordUserId: "567890123",
       discordUsername: "eve_governance",
-      stakeAddress: "stake1uy8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqr9f2h4",
+      stakeAddress:
+        "stake1uy8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqr9f2h4",
       liveStake: "180000000000", // 180,000 ADA
       sentiment: "YES",
-      comment: "Great initiative! This will help bootstrap more development on Cardano.",
+      comment:
+        "Great initiative! This will help bootstrap more development on Cardano.",
       createdAt: "2024-12-09T14:45:00Z",
     },
     {
       id: "6",
       discordUserId: "678901234",
       discordUsername: "frank_pool",
-      stakeAddress: "stake1uz9w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqhvw3k7",
+      stakeAddress:
+        "stake1uz9w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqhvw3k7",
       liveStake: "320000000000", // 320,000 ADA
       sentiment: "NO",
-      comment: "The timeline seems unrealistic. I'd vote yes if they extended it by 3 months.",
+      comment:
+        "The timeline seems unrealistic. I'd vote yes if they extended it by 3 months.",
       createdAt: "2024-12-09T15:20:00Z",
     },
   ],
@@ -184,41 +194,18 @@ interface DelegatorSentimentProps {
   proposalId: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
-  const { connected, wallet } = useWallet();
+  const { connected } = useWallet();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [drepId, setDrepId] = useState<string | null>(null);
-  const [isLoadingDrep, setIsLoadingDrep] = useState(false);
 
-  // In real implementation, this would fetch from API
-  // For now, use mock data
+  // TODO: In real implementation, fetch from API using proposalId and drepId
+  // For now, use mock data for POC demo
   const sentimentData = MOCK_SENTIMENT_DATA;
 
-  // Get DRep ID when wallet is connected
-  // In real implementation, uncomment this:
-  // useEffect(() => {
-  //   async function getDrepId() {
-  //     if (connected && wallet) {
-  //       setIsLoadingDrep(true);
-  //       try {
-  //         const dRep = await wallet.getDRep();
-  //         if (dRep?.dRepIDCip105) {
-  //           setDrepId(dRep.dRepIDCip105);
-  //         }
-  //       } catch (err) {
-  //         console.error("Failed to get DRep ID:", err);
-  //       } finally {
-  //         setIsLoadingDrep(false);
-  //       }
-  //     } else {
-  //       setDrepId(null);
-  //     }
-  //   }
-  //   getDrepId();
-  // }, [connected, wallet]);
-
   // For demo purposes, simulate DRep connection when wallet is connected
-  const isDrep = connected; // In real app: drepId !== null
+  // In real implementation: fetch drepId from wallet.getDRep() and use it to fetch sentiment data
+  const isDrep = connected;
 
   // If not connected as DRep, show connect prompt
   if (!isDrep) {
@@ -226,7 +213,7 @@ export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
       <Card className="p-6">
         <div className="flex items-center gap-3 mb-4">
           <Users className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Delegator Sentiment</h3>
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
         </div>
         <div className="text-center py-8 space-y-4">
           <div className="flex justify-center">
@@ -257,7 +244,7 @@ export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Users className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Delegator Sentiment</h3>
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
         </div>
         <Badge variant="outline" className="text-xs">
           {summary.totalVotes} delegators voted
@@ -353,7 +340,9 @@ export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{vote.discordUsername}</span>
+                      <span className="font-medium">
+                        {vote.discordUsername}
+                      </span>
                       <Badge
                         variant="outline"
                         className={`text-xs ${sentimentBadge.className}`}
@@ -371,7 +360,9 @@ export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
                   <div className="text-sm font-semibold text-primary">
                     {formatStake(vote.liveStake)} ADA
                   </div>
-                  <div className="text-xs text-muted-foreground">Live Stake</div>
+                  <div className="text-xs text-muted-foreground">
+                    Live Stake
+                  </div>
                 </div>
               </div>
 

@@ -301,7 +301,7 @@ export default function GovernanceDetail() {
                 </Card>
               )}
 
-              {/* Delegator Sentiment - Only visible to DRep wallet holders */}
+              {/* Your Delegator Sentiment - Only visible to DRep wallet holders */}
               <DelegatorSentiment proposalId={selectedAction.hash} />
             </div>
 
