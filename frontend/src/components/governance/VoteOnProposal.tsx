@@ -1,6 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useWallet } from "@meshsdk/react";
 import { MeshTxBuilder, hashDrepAnchor } from "@meshsdk/core";
+import { useDispatch, useSelector } from "react-redux";
+import type { AppDispatch, RootState } from "@/store";
+import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +25,7 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 
 type VoteChoice = "Yes" | "No" | "Abstain";
@@ -31,6 +35,7 @@ interface VoteOnProposalProps {
   certIndex: number;
   proposalTitle: string;
   status: string;
+  proposalId: string; // governance action ID for polling
 }
 
 interface VoteState {
@@ -40,12 +45,21 @@ interface VoteState {
   txHash: string | null;
 }
 
+interface SyncState {
+  isPolling: boolean;
+  isSynced: boolean;
+  pollCount: number;
+  maxPolls: number;
+}
+
 export function VoteOnProposal({
   txHash,
   certIndex,
   proposalTitle,
   status,
+  proposalId,
 }: VoteOnProposalProps) {
+  const dispatch = useDispatch<AppDispatch>();
   const { connected, wallet } = useWallet();
   const [selectedVote, setSelectedVote] = useState<VoteChoice | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,8 +70,115 @@ export function VoteOnProposal({
     error: null,
     txHash: null,
   });
+  const [syncState, setSyncState] = useState<SyncState>({
+    isPolling: false,
+    isSynced: false,
+    pollCount: 0,
+    maxPolls: 15, // 15 polls * 20 seconds = 5 minutes timeout
+  });
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get current votes from Redux store to check if our vote has synced
+  const selectedAction = useSelector(
+    (state: RootState) => state.governance.selectedAction
+  );
 
   const isActive = status === "Active";
+
+  // Store initial vote count when polling starts
+  const initialVoteCountRef = useRef<number>(0);
+
+  // Start polling after successful vote submission
+  const startPolling = useCallback(() => {
+    // Store current vote count to detect changes
+    const currentCount = selectedAction?.votes?.length || 0;
+    initialVoteCountRef.current = currentCount;
+    console.log(`[Vote Sync] Starting polling. Initial vote count: ${currentCount}`);
+
+    setSyncState({
+      isPolling: true,
+      isSynced: false,
+      pollCount: 0,
+      maxPolls: 15,
+    });
+
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Track poll count locally to avoid stale closure issues
+    let localPollCount = 0;
+
+    pollingIntervalRef.current = setInterval(() => {
+      localPollCount += 1;
+      console.log(`[Vote Sync] Poll #${localPollCount} starting...`);
+
+      // Check if we've exceeded max polls (timeout)
+      if (localPollCount >= 15) {
+        console.log(`[Vote Sync] Timeout reached at poll #${localPollCount}`);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setSyncState((prev) => ({
+          ...prev,
+          isPolling: false,
+          pollCount: localPollCount,
+        }));
+        return;
+      }
+
+      // Update poll count in state for UI
+      setSyncState((prev) => ({
+        ...prev,
+        pollCount: localPollCount,
+      }));
+
+      // Dispatch action to refresh proposal data (triggers backend sync-on-read)
+      console.log(`[Vote Sync] Dispatching loadGovernanceActionDetail for ${proposalId}`);
+      dispatch(loadGovernanceActionDetail(proposalId));
+    }, 20000); // Poll every 20 seconds
+  // Note: We intentionally exclude selectedAction?.votes?.length from deps
+  // because we capture the initial count inside the function, and we don't
+  // want the callback to be recreated when votes change (which would break polling)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, proposalId]);
+
+  // Check if vote is synced (vote count increased)
+  useEffect(() => {
+    const currentVoteCount = selectedAction?.votes?.length || 0;
+    console.log(`[Vote Sync] Sync check effect - isPolling: ${syncState.isPolling}, pollCount: ${syncState.pollCount}, initialCount: ${initialVoteCountRef.current}, currentCount: ${currentVoteCount}`);
+
+    if (syncState.isPolling && voteState.txHash && syncState.pollCount > 1) {
+      // Only check if we have a valid initial count (not 0)
+      // This prevents false positives when initialVoteCountRef wasn't set correctly
+      if (initialVoteCountRef.current > 0 && currentVoteCount > initialVoteCountRef.current) {
+        // Vote synced - stop polling
+        console.log(`[Vote Sync] Vote synced! Initial: ${initialVoteCountRef.current}, Current: ${currentVoteCount}`);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setSyncState((prev) => ({
+          ...prev,
+          isPolling: false,
+          isSynced: true,
+        }));
+      }
+    }
+  }, [syncState.isPolling, syncState.pollCount, selectedAction?.votes?.length, voteState.txHash]);
+
+  // Cleanup interval on unmount only
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const handleVoteClick = (vote: VoteChoice) => {
     if (!connected) return;
@@ -151,6 +272,9 @@ export function VoteOnProposal({
         error: null,
         txHash: submittedTxHash,
       });
+
+      // Start polling to sync the vote
+      startPolling();
     } catch (err) {
       console.error("Vote submission error:", err);
       setVoteState({
@@ -160,13 +284,19 @@ export function VoteOnProposal({
         txHash: null,
       });
     }
-  }, [wallet, selectedVote, txHash, certIndex, anchorUrl]);
+  }, [wallet, selectedVote, txHash, certIndex, anchorUrl, startPolling]);
 
   const closeModal = () => {
+    // Stop polling if still running
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
     setIsModalOpen(false);
     setSelectedVote(null);
     setAnchorUrl("");
     setVoteState({ isSubmitting: false, isSuccess: false, error: null, txHash: null });
+    setSyncState({ isPolling: false, isSynced: false, pollCount: 0, maxPolls: 15 });
   };
 
   const getVoteButtonClass = (vote: VoteChoice) => {
@@ -256,7 +386,16 @@ export function VoteOnProposal({
       </Card>
 
       {/* Vote Confirmation Modal */}
-      <Dialog open={isModalOpen} onOpenChange={closeModal}>
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          console.log(`[Vote Sync] Dialog onOpenChange called with: ${open}, isPolling: ${syncState.isPolling}, isSuccess: ${voteState.isSuccess}`);
+          // Only close if explicitly requested (not from re-renders)
+          if (!open) {
+            closeModal();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Your Vote</DialogTitle>
@@ -269,7 +408,11 @@ export function VoteOnProposal({
           {voteState.isSuccess ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center py-6">
-                <CheckCircle className="h-16 w-16 text-success" />
+                {syncState.isSynced ? (
+                  <CheckCircle className="h-16 w-16 text-success" />
+                ) : (
+                  <CheckCircle className="h-16 w-16 text-success" />
+                )}
               </div>
               <div className="text-center space-y-2">
                 <p className="font-semibold text-success">
@@ -290,8 +433,36 @@ export function VoteOnProposal({
                   </a>
                 )}
               </div>
+
+              {/* Sync Status Indicator */}
+              <div className="bg-secondary/50 p-4 rounded-lg">
+                {syncState.isPolling ? (
+                  <div className="flex items-center justify-center gap-2 text-sm">
+                    <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-muted-foreground">
+                      Syncing your vote... ({syncState.pollCount}/{syncState.maxPolls})
+                    </span>
+                  </div>
+                ) : syncState.isSynced ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-success">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Vote synced! You can view it in the voting records below.</span>
+                  </div>
+                ) : syncState.pollCount >= syncState.maxPolls ? (
+                  <div className="text-center text-sm text-muted-foreground">
+                    <p>Sync timed out. Your vote was submitted successfully.</p>
+                    <p className="text-xs mt-1">It may take a few more minutes to appear in the voting records.</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Preparing to sync...</span>
+                  </div>
+                )}
+              </div>
+
               <Button className="w-full" onClick={closeModal}>
-                Close
+                {syncState.isSynced ? "View Updated Records" : "Close"}
               </Button>
             </div>
           ) : (

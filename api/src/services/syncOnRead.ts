@@ -35,6 +35,10 @@ const PROPOSAL_SYNC_COOLDOWN_MS = 1_000; // 1 second per proposal
 let lastOverviewSyncTime = 0;
 const proposalSyncTimes = new Map<string, number>();
 
+// Track proposals currently being synced to prevent concurrent syncs
+let isOverviewSyncInProgress = false;
+const proposalSyncsInProgress = new Set<string>();
+
 /**
  * Syncs the proposals overview on read (BACKGROUND/NON-BLOCKING).
  * Called before returning the proposals list to trigger a background sync.
@@ -51,6 +55,11 @@ const proposalSyncTimes = new Map<string, number>();
 export function syncProposalsOverviewOnRead(): void {
   const now = Date.now();
 
+  // Check if sync is already in progress
+  if (isOverviewSyncInProgress) {
+    return;
+  }
+
   // Check cooldown
   if (now - lastOverviewSyncTime < OVERVIEW_SYNC_COOLDOWN_MS) {
     // Skip silently during cooldown to reduce log noise
@@ -58,11 +67,16 @@ export function syncProposalsOverviewOnRead(): void {
   }
 
   lastOverviewSyncTime = now;
+  isOverviewSyncInProgress = true;
 
   // Run sync in background (non-blocking) - don't await
-  doOverviewSync().catch((error) => {
-    console.error("[Sync-on-Read] Background overview sync failed:", error.message);
-  });
+  doOverviewSync()
+    .catch((error) => {
+      console.error("[Sync-on-Read] Background overview sync failed:", error.message);
+    })
+    .finally(() => {
+      isOverviewSyncInProgress = false;
+    });
 }
 
 /**
@@ -148,6 +162,11 @@ async function doOverviewSync(): Promise<void> {
 export function syncProposalDetailsOnRead(identifier: string): void {
   const now = Date.now();
 
+  // Check if sync is already in progress for this proposal
+  if (proposalSyncsInProgress.has(identifier)) {
+    return;
+  }
+
   // Check cooldown for this specific proposal
   const lastSyncTime = proposalSyncTimes.get(identifier) || 0;
   if (now - lastSyncTime < PROPOSAL_SYNC_COOLDOWN_MS) {
@@ -156,14 +175,19 @@ export function syncProposalDetailsOnRead(identifier: string): void {
   }
 
   proposalSyncTimes.set(identifier, now);
+  proposalSyncsInProgress.add(identifier);
 
   // Run sync in background (non-blocking) - don't await
-  doProposalSync(identifier).catch((error) => {
-    console.error(
-      `[Sync-on-Read] Background sync failed for ${identifier}:`,
-      error.message
-    );
-  });
+  doProposalSync(identifier)
+    .catch((error) => {
+      console.error(
+        `[Sync-on-Read] Background sync failed for ${identifier}:`,
+        error.message
+      );
+    })
+    .finally(() => {
+      proposalSyncsInProgress.delete(identifier);
+    });
 }
 
 /**
