@@ -4,6 +4,12 @@
 
 This milestone delivers the development of web platform, showing governance action and build with voting feature and visualization of mock delegator sentiment data for Cardano governance actions. DReps can now view aggregated feedback from their delegators on each governance proposal, helping them make more informed voting decisions that reflect their community's preferences.
 
+## List of Features to be built in the DRep management web platform
+
+- Governance Action Viewing with details (Title, Type, Status, Votes, Submission Epoch, Expiry Epoch, description, rationale, individual voting records, etc.)
+- Governance Action Voting feature (Yes, No, Abstain)
+- Mock Delegator Sentiment Component in Proposal Details Page
+
 ## UIUX Design of the Governance Platform
 
 We would like to position the Governance Platform to be an all-in-one governance platform covering governance action viewing, voting on governance action, and viewing delegator sentiment. There are 2 main pages related to the platform - Landing page and Proposal Details page.
@@ -56,10 +62,10 @@ After successful wallet connection, DRep can either vote on the landing page or 
 
 After clicking the respective vote option button (yes/ no/ abstain), a pop-up window will be shown and allow user to review the voting details (proposal, voting option) and attach a rationale URL as supplementatry information in the onchain voting transaction to be signed and submitted to the Cardano blockchain. After confirmation, user will be required to sign the transaction. After successful signature, the blockchain transaciton will be submitted to Cardano blockchain. User can check the blockchain transaction confirmation status in its cardano wallet to confirm the voting.
 
-| Yes Vote | No Vote | Abstain Vote |
-|:--------:|:-------:|:------------:|
+|                                  Yes Vote                                  |                                 No Vote                                  |                                    Abstain Vote                                    |
+| :------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :--------------------------------------------------------------------------------: |
 | ![Yes vote confirmation](./images/pop-up-window-yes-vote-confirmation.png) | ![No vote confirmation](./images/pop-up-window-no-vote-confirmation.png) | ![Abstain vote confirmation](./images/pop-up-window-abstain-vote-confirmation.png) |
-| *Figure: Yes vote confirmation* | *Figure: No vote confirmation* | *Figure: Abstain vote confirmation* |
+|                      _Figure: Yes vote confirmation_                       |                      _Figure: No vote confirmation_                      |                        _Figure: Abstain vote confirmation_                         |
 
 <figure>
   <img src="./images/cardano-wallet-voting-confirmation.png" alt="Wallet not connected - Proposal Details Page" width="800" />
