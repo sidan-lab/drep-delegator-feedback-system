@@ -17,7 +17,9 @@ import type {
 /**
  * Parse proposal hash to extract txHash and certIndex
  */
-function parseProposalHash(hash: string): { txHash: string; certIndex: number } | null {
+function parseProposalHash(
+  hash: string
+): { txHash: string; certIndex: number } | null {
   if (!hash) return null;
 
   // Handle txHash:certIndex format (API format)
@@ -163,7 +165,8 @@ export function GovernanceTable() {
 
   const filteredActions = actions.filter((action) => {
     // Filter by type
-    const matchesType = currentFilter === "All" || action.type === currentFilter;
+    const matchesType =
+      currentFilter === "All" || action.type === currentFilter;
 
     // Filter by search query (title)
     const matchesSearch =
@@ -294,7 +297,9 @@ export function GovernanceTable() {
 
                   {/* CC Votes - 2 columns */}
                   <div
-                    className={`lg:col-span-2 space-y-2 ${isCcNotApplicable(action) ? "opacity-30 blur-[1px]" : ""}`}
+                    className={`lg:col-span-2 space-y-2 ${
+                      isCcNotApplicable(action) ? "opacity-30 blur-[1px]" : ""
+                    }`}
                   >
                     {action.ccYesPercent !== undefined ? (
                       <>
@@ -336,7 +341,9 @@ export function GovernanceTable() {
 
                   {/* DRep Votes - 2 columns */}
                   <div
-                    className={`lg:col-span-2 space-y-2 ${isDrepNotApplicable(action) ? "opacity-30 blur-[1px]" : ""}`}
+                    className={`lg:col-span-2 space-y-2 ${
+                      isDrepNotApplicable(action) ? "opacity-30 blur-[1px]" : ""
+                    }`}
                   >
                     <div className="text-sm font-medium text-muted-foreground">
                       DRep Votes
@@ -363,7 +370,9 @@ export function GovernanceTable() {
 
                   {/* SPO Votes - 2 columns */}
                   <div
-                    className={`lg:col-span-2 space-y-2 ${isSpoNotApplicable(action) ? "opacity-30 blur-[1px]" : ""}`}
+                    className={`lg:col-span-2 space-y-2 ${
+                      isSpoNotApplicable(action) ? "opacity-30 blur-[1px]" : ""
+                    }`}
                   >
                     {action.spoYesPercent !== undefined ? (
                       <>
@@ -429,21 +438,22 @@ export function GovernanceTable() {
                   </div>
 
                   {/* Voting buttons for active proposals */}
-                  {action.status === "Active" && (() => {
-                    const parsed = parseProposalHash(action.hash);
-                    if (parsed) {
-                      return (
-                        <VoteButtons
-                          txHash={parsed.txHash}
-                          certIndex={parsed.certIndex}
-                          proposalTitle={action.title}
-                          status={action.status}
-                          compact
-                        />
-                      );
-                    }
-                    return null;
-                  })()}
+                  {action.status === "Active" &&
+                    (() => {
+                      const parsed = parseProposalHash(action.hash);
+                      if (parsed) {
+                        return (
+                          <VoteButtons
+                            txHash={parsed.txHash}
+                            certIndex={parsed.certIndex}
+                            proposalTitle={action.title}
+                            status={action.status}
+                            compact
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
                 </div>
               </Card>
             ))
