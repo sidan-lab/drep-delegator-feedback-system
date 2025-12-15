@@ -48,13 +48,13 @@ const MOCK_SENTIMENT_DATA: DelegatorSentimentData = {
   proposalId: "gov_action123",
   drepId: "drep1qg...",
   summary: {
-    yesCount: 45,
-    noCount: 12,
-    abstainCount: 8,
-    totalVotes: 65,
-    yesPercent: 69.2,
-    noPercent: 18.5,
-    abstainPercent: 12.3,
+    yesCount: 3,
+    noCount: 2,
+    abstainCount: 1,
+    totalVotes: 6,
+    yesPercent: 50.0,
+    noPercent: 33.3,
+    abstainPercent: 16.7,
   },
   votes: [
     {

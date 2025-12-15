@@ -241,12 +241,12 @@ export function VoteButtons({
                   </p>
                   {voteState.txHash && (
                     <a
-                      href={`https://cardanoscan.io/transaction/${voteState.txHash}`}
+                      href={`https://adastat.net/transactions/${voteState.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary text-sm flex items-center justify-center gap-1 hover:underline"
                     >
-                      View on CardanoScan
+                      View on AdaStat
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
