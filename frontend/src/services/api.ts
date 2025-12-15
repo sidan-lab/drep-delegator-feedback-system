@@ -1,9 +1,12 @@
 /**
  * API Service
  * Handles all API calls to the backend for governance data
+ *
+ * All calls go through Next.js API routes which handle authentication
+ * server-side, keeping the API key secure.
  */
 
-import { API_ENDPOINTS, API_KEY } from "@/config/api";
+import { API_ENDPOINTS } from "@/config/api";
 import type {
   GovernanceAction,
   GovernanceActionDetail,
@@ -14,21 +17,15 @@ import type {
 } from "@/types/governance";
 
 /**
- * Generic fetch wrapper with error handling and API key authentication
+ * Generic fetch wrapper with error handling
+ * API key authentication is handled server-side via Next.js API routes
  */
 async function fetchApi<T>(url: string): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-
-  // Add API key header if configured
-  if (API_KEY) {
-    headers["X-API-Key"] = API_KEY;
-  }
-
   const response = await fetch(url, {
     method: "GET",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+    },
   });
 
   if (!response.ok) {
