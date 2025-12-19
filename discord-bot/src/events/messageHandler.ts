@@ -7,73 +7,48 @@ import { config } from "../config";
 import { apiClient } from "../api";
 
 /**
- * Check if a message is a reply to a proposal message
+ * Get proposal ID from thread using database lookup
+ * This is the primary method - uses GuildProposalPost table to map threadId to proposalId
  */
-async function getProposalIdFromReply(message: Message): Promise<string | null> {
-  // Check if message is a reply
-  if (!message.reference?.messageId) return null;
+async function getProposalIdFromThreadLookup(message: Message): Promise<string | null> {
+  // Check if in a thread
+  if (!message.channel.isThread()) return null;
 
   try {
-    // Fetch the parent message
-    const parentMessage = await message.channel.messages.fetch(
-      message.reference.messageId
+    // Look up the proposalId from the GuildProposalPost table using threadId
+    const result = await apiClient.getProposalByThreadId(
+      message.channel.id,
+      config.drep.id!
     );
 
-    // Check if parent is a proposal message
-    if (!parentMessage.embeds || parentMessage.embeds.length === 0) return null;
-
-    const embed = parentMessage.embeds[0];
-
-    // Check if it's our proposal embed
-    if (
-      embed.footer?.text !== "Cardano Governance Feedback" &&
-      !embed.description?.includes("Proposal ID:")
-    ) {
-      return null;
+    if (result.success && result.proposalId) {
+      return result.proposalId;
     }
 
-    // Extract proposal ID
-    const description = embed.description || "";
-    const match = description.match(/Proposal ID:\s*`([^`]+)`/);
-    return match ? match[1] : null;
+    return null;
   } catch (error) {
-    console.error("[Message] Error fetching parent message:", error);
+    console.error("[Message] Error looking up proposal by thread ID:", error);
     return null;
   }
 }
 
 /**
- * Check if message is in a proposal thread
+ * Check if message is in a proposal thread by checking embed footer
+ * This is used as a quick check before making the API call
  */
-async function getProposalIdFromThread(message: Message): Promise<string | null> {
-  // Check if in a thread
-  if (!message.channel.isThread()) return null;
+async function isProposalThread(message: Message): Promise<boolean> {
+  if (!message.channel.isThread()) return false;
 
   try {
-    // Get the thread's starter message
     const starterMessage = await message.channel.fetchStarterMessage();
-    if (!starterMessage) return null;
+    if (!starterMessage) return false;
 
-    // Check if starter message is a proposal message
-    if (!starterMessage.embeds || starterMessage.embeds.length === 0) return null;
+    if (!starterMessage.embeds || starterMessage.embeds.length === 0) return false;
 
     const embed = starterMessage.embeds[0];
-
-    // Check if it's our proposal embed
-    if (
-      embed.footer?.text !== "Cardano Governance Feedback" &&
-      !embed.description?.includes("Proposal ID:")
-    ) {
-      return null;
-    }
-
-    // Extract proposal ID
-    const description = embed.description || "";
-    const match = description.match(/Proposal ID:\s*`([^`]+)`/);
-    return match ? match[1] : null;
+    return embed.footer?.text === "Cardano Governance Feedback";
   } catch (error) {
-    // Thread might not have a starter message (e.g., deleted)
-    return null;
+    return false;
   }
 }
 
@@ -145,14 +120,13 @@ export async function handleMessage(message: Message): Promise<void> {
   if (!message.content.trim()) return;
 
   try {
-    // Try to get proposal ID from reply or thread
-    let proposalId = await getProposalIdFromReply(message);
+    // Quick check: is this a proposal thread? (check embed footer)
+    if (!await isProposalThread(message)) return;
 
-    if (!proposalId) {
-      proposalId = await getProposalIdFromThread(message);
-    }
+    // Look up proposalId using thread ID from database
+    const proposalId = await getProposalIdFromThreadLookup(message);
 
-    // Not related to a proposal
+    // Not related to a proposal (not in our GuildProposalPost table)
     if (!proposalId) return;
 
     // Get guild info
@@ -167,11 +141,11 @@ export async function handleMessage(message: Message): Promise<void> {
     // Submit comment to API
     await apiClient.submitComment({
       proposalId,
-      drepId: config.drep.id,
+      drepId: config.drep.id!,
       guildId: guild.id,
       guildName: guild.name,
       channelId: channel.id,
-      channelName: "name" in channel ? channel.name : "unknown",
+      channelName: "name" in channel ? (channel.name ?? "unknown") : "unknown",
       discordUserId: message.author.id,
       discordUsername: message.author.username,
       content: message.content,

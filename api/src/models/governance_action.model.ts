@@ -21,6 +21,8 @@ export interface GovernanceAction {
   proposalId: string;
   hash: string; // txHash:certIndex format
   title: string;
+  description?: string; // Proposal abstract/description
+  rationale?: string; // Proposal rationale
   type: string;
   status: "Active" | "Ratified" | "Enacted" | "Expired" | "Closed";
   constitutionality: string;
@@ -68,8 +70,6 @@ export interface VoteRecord {
 }
 
 export interface GovernanceActionDetail extends GovernanceAction {
-  description?: string;
-  rationale?: string;
   votes?: VoteRecord[];
   ccVotes?: VoteRecord[];
 }

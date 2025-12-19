@@ -13,6 +13,7 @@ export default async function handler(
     const response = await callApi({
       endpoint: "/overview/proposals",
       method: "GET",
+      req, // Forward client IP for rate limiting
     });
 
     const data = await response.json();

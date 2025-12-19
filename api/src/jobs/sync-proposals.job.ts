@@ -13,11 +13,10 @@ let isProposalSyncRunning = false;
 
 /**
  * Starts the proposal sync cron job
- * Schedule is configurable via PROPOSAL_SYNC_SCHEDULE env variable
- * Defaults to every 5 minutes
+ * Schedule is configurable via PROPOSAL_SYNC_SCHEDULE env variable (required)
  */
 export const startProposalSyncJob = () => {
-  const schedule = process.env.PROPOSAL_SYNC_SCHEDULE || "*/5 * * * *";
+  const schedule = process.env.PROPOSAL_SYNC_SCHEDULE;
   const enabled = process.env.ENABLE_CRON_JOBS !== "false";
 
   if (!enabled) {
@@ -27,12 +26,20 @@ export const startProposalSyncJob = () => {
     return;
   }
 
+  // Check if schedule is defined
+  if (!schedule) {
+    console.error(
+      "[Cron] PROPOSAL_SYNC_SCHEDULE env variable is not set. Proposal sync job will not run."
+    );
+    return;
+  }
+
   // Validate cron schedule
   if (!cron.validate(schedule)) {
     console.error(
-      `[Cron] Invalid cron schedule: ${schedule}. Using default: */5 * * * *`
+      `[Cron] Invalid cron schedule: ${schedule}. Proposal sync job will not run.`
     );
-    return startProposalSyncJobWithSchedule("*/5 * * * *");
+    return;
   }
 
   startProposalSyncJobWithSchedule(schedule);

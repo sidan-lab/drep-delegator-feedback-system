@@ -19,4 +19,29 @@ export const API_ENDPOINTS = {
   // Proposal detail endpoint (requires proposal_id parameter)
   proposalDetail: (proposalId: string) =>
     `/api/proposal/${encodeURIComponent(proposalId)}`,
+
+  // Sentiment endpoints (requires proposalId and drepId)
+  sentiment: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}?drepId=${encodeURIComponent(drepId)}`,
+  sentimentReactions: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}/reactions?drepId=${encodeURIComponent(drepId)}`,
+  sentimentComments: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}/comments?drepId=${encodeURIComponent(drepId)}`,
+
+  // Auth endpoints (JWT-based authentication)
+  authSignIn: "/api/auth/signin",
+  authMe: "/api/auth/me",
+  authClaimDrep: "/api/auth/claim-drep",
+  authApiKey: "/api/auth/api-key",
+  authResetApiKey: "/api/auth/reset-api-key",
+
+  // DRep registration endpoints
+  drepRegister: "/api/drep/register",
+  drepStatus: (drepId: string) => `/api/drep/${encodeURIComponent(drepId)}/status`,
+
+  // Admin endpoints (JWT-authenticated with admin wallet check)
+  adminCheck: "/api/admin/check",
+  adminListDreps: "/api/admin/drep",
+  adminApproveDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/approve`,
+  adminRejectDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/reject`,
 } as const;

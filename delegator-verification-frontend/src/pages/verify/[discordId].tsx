@@ -4,12 +4,13 @@ import { CardanoWallet, useWallet } from "@meshsdk/react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 
-const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME || "DRep";
+const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME;
 
 export default function VerifyPage() {
   const { connected } = useWallet();
   const { query } = useRouter();
   const discordId = query.discordId as string;
+  const discordUsername = query.username as string | undefined;
 
   return (
     <div className="bg-gray-900 w-full min-h-screen text-white text-center">
@@ -26,7 +27,7 @@ export default function VerifyPage() {
 
         <div className="mb-12">
           {connected ? (
-            <VerifyButton discordId={discordId} />
+            <VerifyButton discordId={discordId} discordUsername={discordUsername} />
           ) : (
             <div className="flex flex-col items-center gap-4">
               <CardanoWallet isDark />

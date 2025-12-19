@@ -18,14 +18,12 @@ datasource db {
 model User {
   id               String    @id @default(uuid())
   // discordId        String    @unique
-  walletAddress    String?
+  walletAddress    String?   @unique
   stakeKeyLovelace Float?
   jwt              String?
   createdAt        DateTime? @default(now())
   updatedAt        DateTime? @updatedAt
-  drep             Drep?
-  spo              SPO?
-  cc               CC?
+  drepRegistration DrepRegistration?
   // spoDelegation    Boolean?
   // drepDelegation   Boolean?
   // offchainVotes          OffchainVote[]
@@ -35,7 +33,6 @@ model Drep { // get drep list from https://api.koios.rest/api/v1/drep_list
   // get drep info from https://api.koios.rest/api/v1/drep_info
   id              String        @id @default(uuid())
   drepId          String        @unique // drep_id value from drep_info api response (CIP-129 format)
-  userId          String?       @unique
   name            String?       // meta_json.body.givenName from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
   paymentAddress  String?       // meta_json.body.paymentAddress from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
   iconUrl        String?       // meta_json.body.image.contentUrl from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
@@ -43,7 +40,6 @@ model Drep { // get drep list from https://api.koios.rest/api/v1/drep_list
   votingPower     BigInt   // Stored in lovelace. Get from https://api.koios.rest/api/v1/drep_voting_power_history?_epoch_no=320&_drep_id=drep17l6sywnwqu9aedd6aumev42w39ln5zfl9nw7j4ak6u8swyrwvz3 from amount value in response
   createdAt       DateTime?     @default(now())
   updatedAt       DateTime?     @updatedAt
-  user            User?         @relation(fields: [userId], references: [id])
   onchainVotes    OnchainVote[]
 }
 
@@ -51,7 +47,6 @@ model SPO { // get spo list from https://api.koios.rest/api/v1/pool_list
   // get spo info from https://api.koios.rest/api/v1/pool_info
   id           String        @id @default(uuid())
   poolId       String        @unique  // pool_id_bech32 value from pool_info api response
-  userId       String?       @unique
   poolName     String?   // go to meta_url from pool_info api response and use the name value
   ticker       String?  // ticker value from pool_info api response
   iconUrl      String?  // go to meta_url from pool_info api response and go to the url specified under the extended field and look for url_png_icon_64x64 field
@@ -59,13 +54,11 @@ model SPO { // get spo list from https://api.koios.rest/api/v1/pool_list
   createdAt    DateTime?     @default(now())
   updatedAt    DateTime?     @updatedAt
   onchainVotes OnchainVote[]
-  user         User?         @relation(fields: [userId], references: [id])
 }
 
 model CC { // get cc list from https://api.koios.rest/api/v1/committee_info
   id             String        @id @default(uuid())
   ccId           String        @unique // get members.cc_hot_id value from committee_info api response
-  userId         String?       @unique
   memberName     String?  // go to https://api.koios.rest/api/v1/committee_votes?_cc_hot_id=cc_hot1qf5tkz6zwcpplq3kgpt2486d8za943vmymqkdjl249qgw3s2y5r9y and go to meta_url value to get the name value from authors[].name value
   hotCredential  String?  // get members.cc_hot_id value from committee_info api response
   coldCredential String?  // get members.cc_cold_id value from committee_info api response
@@ -74,7 +67,6 @@ model CC { // get cc list from https://api.koios.rest/api/v1/committee_info
   createdAt      DateTime?     @default(now())
   updatedAt      DateTime?     @updatedAt
   onchainVotes   OnchainVote[]
-  user           User?         @relation(fields: [userId], references: [id])
 }
 
 enum VoteType {
@@ -209,24 +201,27 @@ enum RegistrationStatus {
 }
 
 model DrepRegistration {
-  id              String             @id @default(uuid())
-  drepId          String             @unique // DRep ID (CIP-129 format)
-  drepName        String?            // Display name
-  contactEmail    String?            // Contact email for communication
-  discordServerId String?            // Primary Discord server ID
-  status          RegistrationStatus @default(PENDING)
-  rejectionReason String?            // Reason if rejected
-  apiKey          String?            @unique // Generated only when APPROVED
-  approvedAt      DateTime?
-  approvedBy      String?            // Admin who approved
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id             String             @id @default(uuid())
+  drepId         String             @unique // DRep ID (CIP-129 format)
+  drepName       String?            // Display name
+  contactEmail   String?            // Contact email for communication
+  discordGuildId String?            // Authorized Discord server ID for this DRep
+  userId         String?            @unique // Link to User for JWT authentication
+  status         RegistrationStatus @default(PENDING)
+  rationale      String?            // Reason for approval or rejection
+  apiKey         String?            @unique // Generated when APPROVED, used for per-DRep API authentication
+  reviewedAt     DateTime?          // When admin last reviewed (approved/rejected)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
+  user                User?               @relation(fields: [userId], references: [id])
   guilds              DiscordGuild[]
   verifiedDelegators  VerifiedDelegator[]
 
   @@index([apiKey])
   @@index([status])
+  @@index([userId])
+  @@index([discordGuildId])
 }
 
 // Verified delegators (managed by DRep)
@@ -246,7 +241,6 @@ model VerifiedDelegator {
 
   drepRegistration   DrepRegistration @relation(fields: [drepId], references: [drepId])
   reactions          DiscordReaction[]
-  comments           DiscordComment[]
 
   @@unique([drepId, discordUserId])
   @@unique([drepId, stakeAddress])
@@ -268,13 +262,13 @@ model DiscordGuild {
 
   drepRegistration     DrepRegistration @relation(fields: [drepId], references: [drepId])
   reactions            DiscordReaction[]
-  comments             DiscordComment[]
+  proposalPosts        GuildProposalPost[]
 
   @@unique([guildId, drepId])
   @@index([drepId])
 }
 
-// Sentiment reactions from Discord users
+// Sentiment reactions from Discord users (includes optional comments)
 model DiscordReaction {
   id               String        @id @default(uuid())
   proposalId       String        // Cardano governance action ID
@@ -284,6 +278,8 @@ model DiscordReaction {
   discordUserId    String        // Discord user ID
   discordUsername  String        // Discord username (for display)
   sentiment        SentimentType // YES, NO, ABSTAIN
+  comment          String?       // Optional comment text from delegator
+  messageId        String?       // Discord message ID (if comment was added)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -297,42 +293,27 @@ model DiscordReaction {
   @@index([guildId])
 }
 
-// Comments from Discord users on proposals
-model DiscordComment {
-  id               String         @id @default(uuid())
-  proposalId       String         // Cardano governance action ID
-  drepId           String         // DRep ID receiving feedback
-  guildId          String         // Discord server ID
-  channelId        String         // Discord channel ID
-  discordUserId    String         // Discord user ID
-  discordUsername  String         // Discord username (for display)
-  messageId        String         @unique // Discord message ID (to prevent duplicates)
-  content          String         // Comment content
-  sentiment        SentimentType? // Optional detected sentiment
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  guild            DiscordGuild   @relation(fields: [guildId, drepId], references: [guildId, drepId])
-  delegator        VerifiedDelegator? @relation(fields: [drepId, discordUserId], references: [drepId, discordUserId])
-
-  @@index([proposalId])
-  @@index([drepId])
-  @@index([guildId])
-}
-
-// Aggregated sentiment summary per proposal per DRep (for quick frontend queries)
-model ProposalSentiment {
+// Track forum threads posted to Discord guilds for proposals
+// Also stores aggregated sentiment counts (assuming one guild per DRep)
+model GuildProposalPost {
   id            String   @id @default(uuid())
+  guildId       String   // Discord server ID
+  drepId        String   // DRep ID (CIP-129 format)
   proposalId    String   // Cardano governance action ID
-  drepId        String   // DRep ID
+  threadId      String   // Discord forum thread ID
+  // Aggregated sentiment counts
   yesCount      Int      @default(0)
   noCount       Int      @default(0)
   abstainCount  Int      @default(0)
   commentCount  Int      @default(0)
-  lastUpdated   DateTime @updatedAt
-  createdAt     DateTime @default(now())
+  postedAt      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@unique([proposalId, drepId])
+  guild         DiscordGuild @relation(fields: [guildId, drepId], references: [guildId, drepId])
+
+  @@unique([guildId, drepId, proposalId]) // One thread per proposal per guild
+  @@unique([proposalId, drepId])          // Also unique by proposal+drep for sentiment queries
   @@index([proposalId])
+  @@index([threadId])
   @@index([drepId])
 }

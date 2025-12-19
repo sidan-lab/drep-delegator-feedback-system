@@ -43,9 +43,10 @@ function parseProposalHash(
   return null;
 }
 
-function formatHash(hash: string): string {
-  if (hash.length <= 18) return hash;
-  return `${hash.slice(0, 12)}...${hash.slice(-6)}`;
+function formatProposalId(proposalId: string): string {
+  if (!proposalId) return "";
+  if (proposalId.length <= 24) return proposalId;
+  return `${proposalId.slice(0, 16)}...${proposalId.slice(-8)}`;
 }
 
 /**
@@ -291,7 +292,7 @@ export function GovernanceTable() {
                     </div>
                     <h3 className="text-lg font-semibold">{action.title}</h3>
                     <p className="text-xs text-muted-foreground font-mono">
-                      {formatHash(action.hash)}
+                      {formatProposalId(action.proposalId || action.hash)}
                     </p>
                   </div>
 

@@ -12,8 +12,6 @@ import {
 } from "discord.js";
 import { config } from "../config";
 
-const VERIFICATION_FRONTEND_URL = process.env.VERIFICATION_FRONTEND_URL || "http://localhost:3002";
-
 export const verifyCommand = {
   data: new SlashCommandBuilder()
     .setName("verify")
@@ -23,8 +21,17 @@ export const verifyCommand = {
     const userId = interaction.user.id;
     const username = interaction.user.username;
 
-    // Generate verification URL with user's Discord ID
-    const verificationUrl = `${VERIFICATION_FRONTEND_URL}/verify/${userId}`;
+    // Check if verification frontend URL is configured
+    if (!config.verification.frontendUrl) {
+      await interaction.reply({
+        content: "Verification is not configured. Please contact an administrator.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Generate verification URL with user's Discord ID and username
+    const verificationUrl = `${config.verification.frontendUrl}/verify/${userId}?username=${encodeURIComponent(username)}`;
 
     // Create embed with instructions
     const embed = new EmbedBuilder()
@@ -42,7 +49,7 @@ export const verifyCommand = {
         `Your verification link is unique to your Discord account.`
       )
       .addFields(
-        { name: "DRep", value: config.drep.id, inline: true },
+        { name: "DRep", value: config.drep.id || "Not configured", inline: true },
         { name: "Your Discord ID", value: userId, inline: true }
       )
       .setTimestamp()

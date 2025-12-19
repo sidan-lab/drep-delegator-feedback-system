@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
+import { validateGuildId } from "../../middleware/auth.middleware";
 
 /**
  * Register a Discord guild for sentiment collection
@@ -14,6 +15,15 @@ export const registerGuild = async (req: Request, res: Response) => {
       return res.status(400).json({
         error: "Missing required fields",
         message: "guildId, guildName, and drepId are required",
+      });
+    }
+
+    // Validate guild ID matches registered Discord server for this DRep
+    const guildValidation = validateGuildId(req, guildId);
+    if (!guildValidation.valid) {
+      return res.status(403).json({
+        error: "Unauthorized Discord server",
+        message: guildValidation.error,
       });
     }
 

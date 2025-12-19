@@ -315,7 +315,8 @@ export default function GovernanceDetail() {
               )}
 
               {/* Your Delegator Sentiment - Only visible to DRep wallet holders */}
-              <DelegatorSentiment proposalId={selectedAction.hash} />
+              {/* Use proposalId (gov_action ID) for sentiment lookup, not hash (txHash:certIndex) */}
+              <DelegatorSentiment proposalId={selectedAction.proposalId || selectedAction.hash} />
             </div>
 
             {/* Right Column - Sidebar */}

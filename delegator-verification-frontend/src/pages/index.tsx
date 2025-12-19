@@ -2,7 +2,7 @@ import { INSTRUCTION_TEXT, TITLE_TEXT } from "@/lib/text";
 import Head from "next/head";
 import Link from "next/link";
 
-const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME || "DRep";
+const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME;
 
 export default function Home() {
   return (

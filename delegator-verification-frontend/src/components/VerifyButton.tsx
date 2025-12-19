@@ -1,24 +1,21 @@
 import { useValidateDelegation } from "@/lib/hooks/useValidateDelegation";
 import { DELEGATE_TEXT, ERROR_TEXT, SUCCESS_TEXT } from "@/lib/text";
 import { cn } from "@/lib/utils";
-import { useAddress, useWallet } from "@meshsdk/react";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loading } from "./Loading";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
 const DREP_ID = process.env.NEXT_PUBLIC_DREP_ID!;
 const DISCORD_CHANNEL_LINK = process.env.NEXT_PUBLIC_DISCORD_CHANNEL_LINK!;
 
 export interface VerifyButtonProps {
   discordId?: string;
+  discordUsername?: string;
 }
 
-export const VerifyButton = ({ discordId = "" }: VerifyButtonProps) => {
+export const VerifyButton = ({ discordId = "", discordUsername = "" }: VerifyButtonProps) => {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
-  const [lovelace, setLovelace] = useState<string>("0");
 
   const {
     rewardAddress,
@@ -29,25 +26,6 @@ export const VerifyButton = ({ discordId = "" }: VerifyButtonProps) => {
     setLoading,
     delegateToDRep,
   } = useValidateDelegation();
-
-  const address = useAddress();
-  const { wallet } = useWallet();
-
-  // Get lovelace balance when wallet connects
-  useEffect(() => {
-    if (wallet) {
-      wallet.getLovelace().then((value) => {
-        setLovelace(value);
-      });
-    }
-  }, [wallet]);
-
-  // Update lovelace from liveStake when available
-  useEffect(() => {
-    if (liveStake) {
-      setLovelace(liveStake);
-    }
-  }, [liveStake]);
 
   /**
    * Handle delegation button click
@@ -77,25 +55,17 @@ export const VerifyButton = ({ discordId = "" }: VerifyButtonProps) => {
       return;
     }
 
-    // Submit verification to central API
+    // Submit verification via local API proxy (keeps API key server-side)
+    // Backend will check delegation and get liveStake from Koios
     const requestBody = {
       drepId: DREP_ID,
       discordUserId: discordId,
-      discordUsername: "", // Will be filled by Discord bot
+      discordUsername: discordUsername || "",
       stakeAddress: rewardAddress,
-      liveStake: lovelace,
     };
 
     try {
-      const result = await axios.post(
-        `${API_BASE_URL}/sentiment/delegator/verify`,
-        requestBody,
-        {
-          headers: {
-            "X-API-Key": API_KEY,
-          },
-        }
-      );
+      const result = await axios.post("/api/verifyDelegator", requestBody);
 
       if (result.data.success) {
         setError("");

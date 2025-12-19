@@ -19,6 +19,7 @@ export default async function handler(
     const response = await callApi({
       endpoint: `/overview/ncl/${encodeURIComponent(year)}`,
       method: "GET",
+      req, // Forward client IP for rate limiting
     });
 
     const data = await response.json();

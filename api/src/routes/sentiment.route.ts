@@ -1,7 +1,215 @@
 import express from "express";
 import { sentimentController } from "../controllers";
+import { apiKeyAuth, adminApiKeyAuth, jwtAuth } from "../middleware/auth.middleware";
 
 const router = express.Router();
+
+// ============================================
+// DRep Registration Endpoints
+// ============================================
+
+/**
+ * @openapi
+ * /sentiment/drep/register:
+ *   post:
+ *     summary: Register a new DRep for sentiment collection
+ *     description: |
+ *       Submit registration for admin approval. Requires JWT authentication and verifies DRep ownership.
+ *       The connected wallet must be the same wallet that registered the DRep on-chain.
+ *     tags:
+ *       - DRep Registration
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - drepId
+ *               - discordGuildId
+ *             properties:
+ *               drepId:
+ *                 type: string
+ *                 description: DRep ID (CIP-129 format)
+ *               discordGuildId:
+ *                 type: string
+ *                 description: Authorized Discord server ID (snowflake format)
+ *               drepName:
+ *                 type: string
+ *                 description: Display name
+ *               contactEmail:
+ *                 type: string
+ *                 description: Contact email for communication
+ *     responses:
+ *       201:
+ *         description: Registration submitted successfully (ownership verified)
+ *       400:
+ *         description: Missing required fields
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: DRep ownership verification failed
+ *       409:
+ *         description: DRep already registered or user already has registration
+ */
+router.post("/drep/register", jwtAuth, sentimentController.registerDrep); // Requires JWT + DRep ownership verification
+
+/**
+ * @openapi
+ * /sentiment/drep/{drepId}/status:
+ *   get:
+ *     summary: Get DRep registration status
+ *     description: Check registration status (public endpoint)
+ *     tags:
+ *       - DRep Registration
+ *     parameters:
+ *       - name: drepId
+ *         in: path
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Registration status retrieved
+ *       404:
+ *         description: DRep not found
+ */
+router.get("/drep/:drepId/status", sentimentController.getDrepStatus); // Public
+
+/**
+ * @openapi
+ * /sentiment/drep/{drepId}/approve:
+ *   post:
+ *     summary: Approve a DRep registration (Admin)
+ *     description: Approve registration and generate API key. Requires SERVER_API_KEY.
+ *     tags:
+ *       - DRep Registration
+ *     security:
+ *       - ApiKeyAuth: []
+ *     parameters:
+ *       - name: drepId
+ *         in: path
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               approvedBy:
+ *                 type: string
+ *                 description: Admin identifier
+ *     responses:
+ *       200:
+ *         description: DRep approved, API key generated
+ *       400:
+ *         description: Already approved
+ *       404:
+ *         description: DRep not found
+ */
+router.post("/drep/:drepId/approve", adminApiKeyAuth, sentimentController.approveDrep); // Admin only
+
+/**
+ * @openapi
+ * /sentiment/drep/{drepId}/reject:
+ *   post:
+ *     summary: Reject a DRep registration (Admin)
+ *     description: Reject registration with reason. Requires SERVER_API_KEY.
+ *     tags:
+ *       - DRep Registration
+ *     security:
+ *       - ApiKeyAuth: []
+ *     parameters:
+ *       - name: drepId
+ *         in: path
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Rejection reason
+ *               rejectedBy:
+ *                 type: string
+ *                 description: Admin identifier
+ *     responses:
+ *       200:
+ *         description: DRep rejected
+ *       404:
+ *         description: DRep not found
+ */
+router.post("/drep/:drepId/reject", adminApiKeyAuth, sentimentController.rejectDrep); // Admin only
+
+/**
+ * @openapi
+ * /sentiment/drep/{drepId}/regenerate-key:
+ *   post:
+ *     summary: Regenerate API key for a DRep (Admin)
+ *     description: Generate new API key if compromised. Requires SERVER_API_KEY.
+ *     tags:
+ *       - DRep Registration
+ *     security:
+ *       - ApiKeyAuth: []
+ *     parameters:
+ *       - name: drepId
+ *         in: path
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: New API key generated
+ *       400:
+ *         description: DRep not approved
+ *       404:
+ *         description: DRep not found
+ */
+router.post("/drep/:drepId/regenerate-key", adminApiKeyAuth, sentimentController.regenerateApiKey); // Admin only
+
+/**
+ * @openapi
+ * /sentiment/drep:
+ *   get:
+ *     summary: List all DRep registrations (Admin)
+ *     description: Get paginated list of all registrations. Requires SERVER_API_KEY.
+ *     tags:
+ *       - DRep Registration
+ *     security:
+ *       - ApiKeyAuth: []
+ *     parameters:
+ *       - name: status
+ *         in: query
+ *         description: Filter by status (PENDING, APPROVED, REJECTED)
+ *         schema:
+ *           type: string
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - name: offset
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Registrations retrieved
+ */
+router.get("/drep", adminApiKeyAuth, sentimentController.listDrepRegistrations); // Admin only
 
 /**
  * @openapi
@@ -42,7 +250,7 @@ const router = express.Router();
  *       403:
  *         description: DRep not authorized
  */
-router.post("/register-guild", sentimentController.registerGuild);
+router.post("/register-guild", apiKeyAuth, sentimentController.registerGuild); // Per-DRep auth
 
 /**
  * @openapi
@@ -107,7 +315,7 @@ router.post("/register-guild", sentimentController.registerGuild);
  *       403:
  *         description: DRep not authorized
  */
-router.post("/reaction", sentimentController.submitReaction);
+router.post("/reaction", apiKeyAuth, sentimentController.submitReaction); // Per-DRep auth
 
 /**
  * @openapi
@@ -176,7 +384,7 @@ router.post("/reaction", sentimentController.submitReaction);
  *       409:
  *         description: Duplicate comment (messageId already exists)
  */
-router.post("/comment", sentimentController.submitComment);
+router.post("/comment", apiKeyAuth, sentimentController.submitComment); // Per-DRep auth
 
 /**
  * @openapi
@@ -238,7 +446,7 @@ router.post("/comment", sentimentController.submitComment);
  *                     totalReactions:
  *                       type: integer
  */
-router.get("/:proposal_id", sentimentController.getSentiment);
+router.get("/:proposal_id", jwtAuth, sentimentController.getSentiment); // JWT auth for frontend DRep viewing
 
 /**
  * @openapi
@@ -279,7 +487,7 @@ router.get("/:proposal_id", sentimentController.getSentiment);
  *       200:
  *         description: Comments retrieved successfully
  */
-router.get("/:proposal_id/comments", sentimentController.getComments);
+router.get("/:proposal_id/comments", jwtAuth, sentimentController.getComments); // JWT auth for frontend DRep viewing
 
 /**
  * @openapi
@@ -327,7 +535,7 @@ router.get("/:proposal_id/comments", sentimentController.getComments);
  *       200:
  *         description: Reactions retrieved successfully
  */
-router.get("/:proposal_id/reactions", sentimentController.getReactions);
+router.get("/:proposal_id/reactions", jwtAuth, sentimentController.getReactions); // JWT auth for frontend DRep viewing
 
 // ============================================
 // Delegator Verification Endpoints
@@ -377,7 +585,60 @@ router.get("/:proposal_id/reactions", sentimentController.getReactions);
  *       409:
  *         description: Stake address already linked to another Discord account
  */
-router.post("/delegator/verify", sentimentController.verifyDelegator);
+router.post("/delegator/verify", apiKeyAuth, sentimentController.verifyDelegator); // Per-DRep auth
+
+/**
+ * @openapi
+ * /sentiment/delegator/check:
+ *   get:
+ *     summary: Check if a Discord user is a verified delegator
+ *     description: Used by Discord bot to confirm verification status before granting role
+ *     tags:
+ *       - Delegators
+ *     parameters:
+ *       - name: drepId
+ *         in: query
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *       - name: discordUserId
+ *         in: query
+ *         required: true
+ *         description: Discord user ID to check
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Check completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 verified:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 delegator:
+ *                   type: object
+ *                   properties:
+ *                     discordUserId:
+ *                       type: string
+ *                     discordUsername:
+ *                       type: string
+ *                     stakeAddress:
+ *                       type: string
+ *                     liveStake:
+ *                       type: string
+ *                     isActive:
+ *                       type: boolean
+ *       400:
+ *         description: Missing required parameters
+ */
+router.get("/delegator/check", apiKeyAuth, sentimentController.checkDelegator); // Per-DRep auth
 
 /**
  * @openapi
@@ -412,7 +673,7 @@ router.post("/delegator/verify", sentimentController.verifyDelegator);
  *       404:
  *         description: Delegator not found
  */
-router.post("/delegator/deactivate", sentimentController.deactivateDelegator);
+router.post("/delegator/deactivate", apiKeyAuth, sentimentController.deactivateDelegator); // Per-DRep auth
 
 /**
  * @openapi
@@ -453,6 +714,232 @@ router.post("/delegator/deactivate", sentimentController.deactivateDelegator);
  *       200:
  *         description: Delegators retrieved successfully
  */
-router.get("/delegator/:drepId", sentimentController.listDelegators);
+router.get("/delegator/:drepId", apiKeyAuth, sentimentController.listDelegators); // Per-DRep auth
+
+// ============================================
+// Proposal Post Tracking Endpoints
+// ============================================
+
+/**
+ * @openapi
+ * /sentiment/proposal-post:
+ *   post:
+ *     summary: Record a proposal posted to a Discord guild
+ *     description: Called by Discord bot after creating a forum thread for a proposal
+ *     tags:
+ *       - Proposal Posts
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - guildId
+ *               - drepId
+ *               - proposalId
+ *               - threadId
+ *             properties:
+ *               guildId:
+ *                 type: string
+ *                 description: Discord server ID
+ *               drepId:
+ *                 type: string
+ *                 description: DRep ID (CIP-129 format)
+ *               proposalId:
+ *                 type: string
+ *                 description: Cardano governance action ID
+ *               threadId:
+ *                 type: string
+ *                 description: Discord forum thread ID
+ *     responses:
+ *       201:
+ *         description: Proposal post recorded successfully
+ *       400:
+ *         description: Missing required fields or proposal not found
+ *       403:
+ *         description: DRep or guild not authorized
+ */
+router.post("/proposal-post", apiKeyAuth, sentimentController.createProposalPost); // Per-DRep auth
+
+/**
+ * @openapi
+ * /sentiment/proposal-post/check:
+ *   get:
+ *     summary: Check if a proposal has been posted to a guild
+ *     description: Used by Discord bot to check before posting to avoid duplicates
+ *     tags:
+ *       - Proposal Posts
+ *     parameters:
+ *       - name: guildId
+ *         in: query
+ *         required: true
+ *         description: Discord server ID
+ *         schema:
+ *           type: string
+ *       - name: drepId
+ *         in: query
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *       - name: proposalId
+ *         in: query
+ *         required: true
+ *         description: Cardano governance action ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Check completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 posted:
+ *                   type: boolean
+ *                 post:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     threadId:
+ *                       type: string
+ *                     postedAt:
+ *                       type: string
+ */
+router.get("/proposal-post/check", apiKeyAuth, sentimentController.checkProposalPost); // Per-DRep auth
+
+/**
+ * @openapi
+ * /sentiment/proposal-post/by-thread:
+ *   get:
+ *     summary: Get proposal ID by thread ID
+ *     description: Used by Discord bot to look up proposalId for comment collection
+ *     tags:
+ *       - Proposal Posts
+ *     parameters:
+ *       - name: threadId
+ *         in: query
+ *         required: true
+ *         description: Discord forum thread ID
+ *         schema:
+ *           type: string
+ *       - name: drepId
+ *         in: query
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Proposal ID retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 proposalId:
+ *                   type: string
+ *                 guildId:
+ *                   type: string
+ *       404:
+ *         description: Thread not found
+ */
+router.get("/proposal-post/by-thread", apiKeyAuth, sentimentController.getProposalByThreadId); // Per-DRep auth
+
+/**
+ * @openapi
+ * /sentiment/proposal-post/{guildId}/{drepId}:
+ *   get:
+ *     summary: Get all proposal posts for a guild
+ *     description: Returns list of all proposals posted to a specific guild
+ *     tags:
+ *       - Proposal Posts
+ *     parameters:
+ *       - name: guildId
+ *         in: path
+ *         required: true
+ *         description: Discord server ID
+ *         schema:
+ *           type: string
+ *       - name: drepId
+ *         in: path
+ *         required: true
+ *         description: DRep ID (CIP-129 format)
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Proposal posts retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 guildId:
+ *                   type: string
+ *                 drepId:
+ *                   type: string
+ *                 posts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       proposalId:
+ *                         type: string
+ *                       threadId:
+ *                         type: string
+ *                       postedAt:
+ *                         type: string
+ *                 count:
+ *                   type: integer
+ */
+router.get("/proposal-post/:guildId/:drepId", apiKeyAuth, sentimentController.getProposalPosts); // Per-DRep auth
+
+/**
+ * @openapi
+ * /sentiment/proposal-post:
+ *   delete:
+ *     summary: Delete a proposal post record
+ *     description: Used if a forum thread is deleted manually
+ *     tags:
+ *       - Proposal Posts
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - guildId
+ *               - drepId
+ *               - proposalId
+ *             properties:
+ *               guildId:
+ *                 type: string
+ *                 description: Discord server ID
+ *               drepId:
+ *                 type: string
+ *                 description: DRep ID (CIP-129 format)
+ *               proposalId:
+ *                 type: string
+ *                 description: Cardano governance action ID
+ *     responses:
+ *       200:
+ *         description: Proposal post deleted successfully
+ *       404:
+ *         description: Proposal post not found
+ */
+router.delete("/proposal-post", apiKeyAuth, sentimentController.deleteProposalPost); // Per-DRep auth
 
 export default router;

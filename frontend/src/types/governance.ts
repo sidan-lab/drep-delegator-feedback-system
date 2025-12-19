@@ -170,3 +170,89 @@ export interface NCLDisplayData {
   epoch: number;
   updatedAt: string;
 }
+
+/**
+ * Sentiment summary for a single DRep
+ */
+export interface SentimentSummary {
+  drepId: string;
+  yesCount: number;
+  noCount: number;
+  abstainCount: number;
+  commentCount: number;
+  lastUpdated: string;
+}
+
+/**
+ * Sentiment API response
+ * Returns aggregated sentiment data for a proposal
+ */
+export interface SentimentResponse {
+  proposalId: string;
+  sentiment: SentimentSummary[];
+  totals: {
+    yesCount: number;
+    noCount: number;
+    abstainCount: number;
+    commentCount: number;
+    totalReactions: number;
+  };
+}
+
+/**
+ * Individual sentiment reaction from a delegator
+ */
+export interface SentimentReaction {
+  id: string;
+  proposalId: string;
+  drepId: string;
+  discordUserId: string;
+  discordUsername: string;
+  sentiment: "YES" | "NO" | "ABSTAIN";
+  stakeAddress?: string;
+  liveStake?: string; // in lovelace
+  comment?: string;
+  createdAt: string;
+}
+
+/**
+ * Sentiment reactions API response
+ * Returns individual reactions with pagination
+ */
+export interface SentimentReactionsResponse {
+  proposalId: string;
+  reactions: SentimentReaction[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+/**
+ * Individual comment from a delegator
+ */
+export interface SentimentComment {
+  id: string;
+  proposalId: string;
+  drepId: string;
+  discordUserId: string;
+  discordUsername: string;
+  content: string;
+  sentiment?: "YES" | "NO" | "ABSTAIN";
+  createdAt: string;
+}
+
+/**
+ * Sentiment comments API response
+ * Returns individual comments with pagination
+ */
+export interface SentimentCommentsResponse {
+  proposalId: string;
+  comments: SentimentComment[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}

@@ -1,5 +1,32 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
+import { normalizeToCip129 } from "../../libs/drepIdConverter";
+
+/**
+ * Resolve proposal identifier to the canonical proposalId
+ * Handles both gov_action (bech32) and txHash:certIndex formats
+ */
+async function resolveProposalId(inputId: string): Promise<string> {
+  // First, try to find by proposalId (gov_action format)
+  const byProposalId = await prisma.proposal.findUnique({
+    where: { proposalId: inputId },
+    select: { proposalId: true },
+  });
+  if (byProposalId) return byProposalId.proposalId;
+
+  // If not found, try to find by txHash:certIndex
+  if (inputId.includes(":")) {
+    const [txHash, certIndex] = inputId.split(":");
+    const byHash = await prisma.proposal.findFirst({
+      where: { txHash, certIndex },
+      select: { proposalId: true },
+    });
+    if (byHash) return byHash.proposalId;
+  }
+
+  // Return the input as-is if no match found (for backwards compatibility)
+  return inputId;
+}
 
 /**
  * Get sentiment summary for a proposal
@@ -17,21 +44,25 @@ export const getSentiment = async (req: Request, res: Response) => {
       });
     }
 
+    // Resolve to canonical proposalId (handles both gov_action and txHash:certIndex formats)
+    const proposalId = await resolveProposalId(proposal_id);
+
     // Build query based on whether drepId is specified
-    const where: any = { proposalId: proposal_id };
+    // Normalize drepId to CIP-129 format (wallet may send CIP-105)
+    const where: any = { proposalId };
     if (drepId) {
-      where.drepId = drepId as string;
+      where.drepId = normalizeToCip129(drepId as string);
     }
 
-    // Get sentiment summaries
-    const summaries = await prisma.proposalSentiment.findMany({
+    // Get sentiment summaries from GuildProposalPost (combined with proposal post tracking)
+    const summaries = await prisma.guildProposalPost.findMany({
       where,
-      orderBy: { lastUpdated: "desc" },
+      orderBy: { updatedAt: "desc" },
     });
 
     if (summaries.length === 0) {
       return res.status(200).json({
-        proposalId: proposal_id,
+        proposalId,
         sentiment: [],
         totals: {
           yesCount: 0,
@@ -55,14 +86,14 @@ export const getSentiment = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json({
-      proposalId: proposal_id,
+      proposalId,
       sentiment: summaries.map((s) => ({
         drepId: s.drepId,
         yesCount: s.yesCount,
         noCount: s.noCount,
         abstainCount: s.abstainCount,
         commentCount: s.commentCount,
-        lastUpdated: s.lastUpdated,
+        lastUpdated: s.updatedAt,
       })),
       totals: {
         ...totals,
@@ -81,6 +112,7 @@ export const getSentiment = async (req: Request, res: Response) => {
 /**
  * Get comments for a proposal
  * Used by frontend to display community feedback details
+ * Now queries reactions that have comments (comment IS NOT NULL)
  */
 export const getComments = async (req: Request, res: Response) => {
   try {
@@ -94,15 +126,19 @@ export const getComments = async (req: Request, res: Response) => {
       });
     }
 
-    // Build query
-    const where: any = { proposalId: proposal_id };
+    // Resolve to canonical proposalId (handles both gov_action and txHash:certIndex formats)
+    const proposalId = await resolveProposalId(proposal_id);
+
+    // Build query - only get reactions with comments
+    // Normalize drepId to CIP-129 format (wallet may send CIP-105)
+    const where: any = { proposalId, comment: { not: null } };
     if (drepId) {
-      where.drepId = drepId as string;
+      where.drepId = normalizeToCip129(drepId as string);
     }
 
-    // Get comments with pagination
-    const [comments, total] = await Promise.all([
-      prisma.discordComment.findMany({
+    // Get reactions with comments (pagination)
+    const [reactions, total] = await Promise.all([
+      prisma.discordReaction.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take: Math.min(parseInt(limit as string) || 50, 100),
@@ -112,16 +148,27 @@ export const getComments = async (req: Request, res: Response) => {
           proposalId: true,
           drepId: true,
           discordUsername: true,
-          content: true,
+          comment: true,
           sentiment: true,
           createdAt: true,
         },
       }),
-      prisma.discordComment.count({ where }),
+      prisma.discordReaction.count({ where }),
     ]);
 
+    // Map to expected comment format (content -> comment for backwards compatibility)
+    const comments = reactions.map((r) => ({
+      id: r.id,
+      proposalId: r.proposalId,
+      drepId: r.drepId,
+      discordUsername: r.discordUsername,
+      content: r.comment, // Map comment to content for API compatibility
+      sentiment: r.sentiment,
+      createdAt: r.createdAt,
+    }));
+
     return res.status(200).json({
-      proposalId: proposal_id,
+      proposalId,
       comments,
       pagination: {
         total,
@@ -140,6 +187,7 @@ export const getComments = async (req: Request, res: Response) => {
 
 /**
  * Get individual reactions for a proposal (for detailed breakdown)
+ * Includes delegator info (stakeAddress, liveStake) when available
  */
 export const getReactions = async (req: Request, res: Response) => {
   try {
@@ -153,37 +201,55 @@ export const getReactions = async (req: Request, res: Response) => {
       });
     }
 
+    // Resolve to canonical proposalId (handles both gov_action and txHash:certIndex formats)
+    const proposalId = await resolveProposalId(proposal_id);
+
     // Build query
-    const where: any = { proposalId: proposal_id };
+    // Normalize drepId to CIP-129 format (wallet may send CIP-105)
+    const where: any = { proposalId };
     if (drepId) {
-      where.drepId = drepId as string;
+      where.drepId = normalizeToCip129(drepId as string);
     }
     if (sentiment) {
       where.sentiment = (sentiment as string).toUpperCase();
     }
 
-    // Get reactions with pagination
+    // Get reactions with pagination and include verified delegator info
     const [reactions, total] = await Promise.all([
       prisma.discordReaction.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take: Math.min(parseInt(limit as string) || 100, 500),
         skip: parseInt(offset as string) || 0,
-        select: {
-          id: true,
-          proposalId: true,
-          drepId: true,
-          discordUsername: true,
-          sentiment: true,
-          createdAt: true,
+        include: {
+          delegator: {
+            select: {
+              stakeAddress: true,
+              liveStake: true,
+            },
+          },
         },
       }),
       prisma.discordReaction.count({ where }),
     ]);
 
+    // Flatten the response to include stakeAddress, liveStake, and comment at top level
+    const flattenedReactions = reactions.map((r) => ({
+      id: r.id,
+      proposalId: r.proposalId,
+      drepId: r.drepId,
+      discordUserId: r.discordUserId,
+      discordUsername: r.discordUsername,
+      sentiment: r.sentiment,
+      comment: r.comment || null,
+      createdAt: r.createdAt,
+      stakeAddress: r.delegator?.stakeAddress || null,
+      liveStake: r.delegator?.liveStake?.toString() || null,
+    }));
+
     return res.status(200).json({
-      proposalId: proposal_id,
-      reactions,
+      proposalId,
+      reactions: flattenedReactions,
       pagination: {
         total,
         limit: parseInt(limit as string) || 100,

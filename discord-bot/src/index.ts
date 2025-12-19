@@ -13,8 +13,9 @@ import {
 } from "discord.js";
 import { config, validateConfig } from "./config";
 import { commands } from "./commands";
-import { handleReactionAdd, handleReactionRemove } from "./events/reactionHandler";
 import { handleMessage } from "./events/messageHandler";
+import { handleButtonInteraction } from "./events/buttonHandler";
+import { initProposalSync } from "./scheduled/proposalSync";
 
 // Validate configuration before starting
 validateConfig();
@@ -24,13 +25,11 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.MessageContent,
   ],
   partials: [
     Partials.Message,
     Partials.Channel,
-    Partials.Reaction,
     Partials.User,
   ],
 });
@@ -43,14 +42,14 @@ commands.forEach((cmd) => {
 
 // Register slash commands
 async function registerCommands(): Promise<void> {
-  const rest = new REST({ version: "10" }).setToken(config.discord.token);
+  const rest = new REST({ version: "10" }).setToken(config.discord.token!);
 
   try {
     console.log("[Bot] Refreshing application (/) commands...");
 
     const commandData = commands.map((cmd) => cmd.data.toJSON());
 
-    await rest.put(Routes.applicationCommands(config.discord.clientId), {
+    await rest.put(Routes.applicationCommands(config.discord.clientId!), {
       body: commandData,
     });
 
@@ -68,10 +67,35 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Register slash commands
   await registerCommands();
+
+  // Initialize proposal sync cron job
+  if (config.channels.forumChannelId) {
+    initProposalSync(client);
+    console.log(`[Bot] Proposal sync initialized for forum channel: ${config.channels.forumChannelId}`);
+  } else {
+    console.log(`[Bot] FORUM_CHANNEL_ID not set - proposal sync disabled`);
+  }
 });
 
-// Event: Interaction (slash commands)
+// Event: Interaction (slash commands and buttons)
 client.on(Events.InteractionCreate, async (interaction) => {
+  // Handle button interactions
+  if (interaction.isButton()) {
+    try {
+      await handleButtonInteraction(interaction);
+    } catch (error) {
+      console.error(`[Bot] Error handling button interaction:`, error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "An error occurred. Please try again.",
+          ephemeral: true,
+        });
+      }
+    }
+    return;
+  }
+
+  // Handle slash commands
   if (!interaction.isChatInputCommand()) return;
 
   const command = commandCollection.get(interaction.commandName);
@@ -94,16 +118,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.reply({ content: errorMessage, ephemeral: true });
     }
   }
-});
-
-// Event: Reaction added
-client.on(Events.MessageReactionAdd, async (reaction, user) => {
-  await handleReactionAdd(reaction, user);
-});
-
-// Event: Reaction removed
-client.on(Events.MessageReactionRemove, async (reaction, user) => {
-  await handleReactionRemove(reaction, user);
 });
 
 // Event: New message (for comments on proposal threads)

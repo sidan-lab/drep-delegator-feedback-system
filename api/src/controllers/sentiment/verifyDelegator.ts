@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
+import { checkStakeAddressDelegation } from "../../services/koios";
 
 /**
  * Verify a delegator and link their Discord account
+ * Combines delegation check + saving in one step
  * Called from the delegator verification frontend
  */
 export const verifyDelegator = async (req: Request, res: Response) => {
@@ -12,7 +14,6 @@ export const verifyDelegator = async (req: Request, res: Response) => {
       discordUserId,
       discordUsername,
       stakeAddress,
-      liveStake,
     } = req.body;
 
     // Validate required fields
@@ -45,11 +46,41 @@ export const verifyDelegator = async (req: Request, res: Response) => {
       });
     }
 
-    // Convert liveStake to BigInt if provided
+    // Check delegation status via Koios
+    const delegationStatus = await checkStakeAddressDelegation(stakeAddress);
+
+    if (!delegationStatus.isRegistered) {
+      return res.status(400).json({
+        success: false,
+        error: "Stake address not registered",
+        message: "This stake address is not registered on-chain",
+        delegation: delegationStatus,
+      });
+    }
+
+    if (!delegationStatus.isDRepDelegated) {
+      return res.status(400).json({
+        success: false,
+        error: "Not delegated to any DRep",
+        message: "This stake address is not delegated to any DRep",
+        delegation: delegationStatus,
+      });
+    }
+
+    if (delegationStatus.delegatedDRepId !== drepId) {
+      return res.status(400).json({
+        success: false,
+        error: "Delegated to different DRep",
+        message: `This stake address is delegated to a different DRep: ${delegationStatus.delegatedDRepId}`,
+        delegation: delegationStatus,
+      });
+    }
+
+    // Convert balance to BigInt
     let liveStakeBigInt: bigint | null = null;
-    if (liveStake) {
+    if (delegationStatus.totalBalance) {
       try {
-        liveStakeBigInt = BigInt(liveStake);
+        liveStakeBigInt = BigInt(delegationStatus.totalBalance);
       } catch {
         // Ignore conversion errors
       }
@@ -91,8 +122,10 @@ export const verifyDelegator = async (req: Request, res: Response) => {
         id: delegator.id,
         discordUserId: delegator.discordUserId,
         stakeAddress: delegator.stakeAddress,
+        liveStake: liveStakeBigInt?.toString() || null,
         isActive: delegator.isActive,
       },
+      delegation: delegationStatus,
     });
   } catch (error: any) {
     // Handle unique constraint violation (same stake address for different Discord user)
@@ -169,6 +202,87 @@ export const deactivateDelegator = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: "Failed to deactivate delegator",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+/**
+ * Check if a specific Discord user is a verified delegator
+ * Used by Discord bot to confirm verification status
+ */
+export const checkDelegator = async (req: Request, res: Response) => {
+  try {
+    const { drepId, discordUserId } = req.query;
+
+    if (!drepId || !discordUserId) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: "Missing required parameters",
+        message: "drepId and discordUserId query parameters are required",
+      });
+    }
+
+    // Find the delegator
+    const delegator = await prisma.verifiedDelegator.findUnique({
+      where: {
+        drepId_discordUserId: {
+          drepId: drepId as string,
+          discordUserId: discordUserId as string,
+        },
+      },
+      select: {
+        id: true,
+        discordUserId: true,
+        discordUsername: true,
+        stakeAddress: true,
+        liveStake: true,
+        isActive: true,
+        lastVerifiedAt: true,
+      },
+    });
+
+    if (!delegator) {
+      return res.status(200).json({
+        success: true,
+        verified: false,
+        message: "Delegator not found",
+      });
+    }
+
+    if (!delegator.isActive) {
+      return res.status(200).json({
+        success: true,
+        verified: false,
+        message: "Delegator is deactivated",
+        delegator: {
+          discordUserId: delegator.discordUserId,
+          isActive: delegator.isActive,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      verified: true,
+      message: "Delegator is verified",
+      delegator: {
+        id: delegator.id,
+        discordUserId: delegator.discordUserId,
+        discordUsername: delegator.discordUsername,
+        stakeAddress: delegator.stakeAddress,
+        liveStake: delegator.liveStake?.toString() || null,
+        isActive: delegator.isActive,
+        lastVerifiedAt: delegator.lastVerifiedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[Sentiment] Error checking delegator:", error);
+    return res.status(500).json({
+      success: false,
+      verified: false,
+      error: "Failed to check delegator",
       message: error instanceof Error ? error.message : "Unknown error",
     });
   }

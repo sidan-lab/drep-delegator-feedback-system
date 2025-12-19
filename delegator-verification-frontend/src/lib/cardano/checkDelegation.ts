@@ -20,9 +20,19 @@ export const checkDelegation = async (
 ): Promise<DelegationStatus> => {
   try {
     const info = await blockchainProvider.get(`/accounts/${stakeAddress}`);
-    const { active, drep_id, controlled_amount } = info;
+    const { drep_id, controlled_amount } = info;
 
-    if (!active) {
+    // Account exists if we get a response (no 404 error)
+    // drep_id indicates DRep delegation regardless of pool staking status
+    return {
+      isRegistered: true,
+      isDRepDelegated: drep_id === drepId,
+      currentDRepId: drep_id || null,
+      liveStake: controlled_amount || null,
+    };
+  } catch (error: unknown) {
+    // 404 means account not found/not registered
+    if (error && typeof error === "object" && "status" in error && error.status === 404) {
       return {
         isRegistered: false,
         isDRepDelegated: false,
@@ -30,14 +40,6 @@ export const checkDelegation = async (
         liveStake: null,
       };
     }
-
-    return {
-      isRegistered: active,
-      isDRepDelegated: drep_id === drepId,
-      currentDRepId: drep_id || null,
-      liveStake: controlled_amount || null,
-    };
-  } catch (error) {
     console.error("Error checking delegation status:", error);
     throw new Error("Failed to check delegation status");
   }

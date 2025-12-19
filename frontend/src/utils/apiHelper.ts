@@ -4,7 +4,7 @@
  * This runs on the server side only, keeping the API key secure
  */
 
-import { NextApiResponse } from "next";
+import { NextApiRequest, NextApiResponse } from "next";
 
 interface CallApiArgs {
   endpoint: string;
@@ -12,22 +12,46 @@ interface CallApiArgs {
   headers?: Record<string, string>;
   body?: string;
   isJson?: boolean;
+  /** Pass the Next.js request to forward client IP for rate limiting */
+  req?: NextApiRequest;
+}
+
+/**
+ * Get the client's real IP from the Next.js request
+ * Checks X-Forwarded-For header first (set by reverse proxies), then falls back to socket address
+ */
+function getClientIp(req?: NextApiRequest): string | undefined {
+  if (!req) return undefined;
+
+  // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+  // The first one is the original client IP
+  const forwardedFor = req.headers["x-forwarded-for"];
+  if (forwardedFor) {
+    const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    return ips.split(",")[0].trim();
+  }
+
+  // Fall back to direct connection IP
+  return req.socket?.remoteAddress;
 }
 
 /**
  * Make a server-side API call to the backend
  * The API key is kept server-side and never exposed to the browser
+ * Client IP is forwarded for proper rate limiting
  */
 export async function callApi(args: CallApiArgs) {
-  const backendApiUrl =
-    process.env.BACKEND_API_URL || "http://localhost:3001";
-  const backendApiKey = process.env.BACKEND_API_KEY || "";
+  const backendApiUrl = process.env.BACKEND_API_URL;
+  const backendApiKey = process.env.BACKEND_API_KEY;
+  const clientIp = getClientIp(args.req);
 
   const res = await fetch(backendApiUrl + args.endpoint, {
     method: args.method || "GET",
     headers: {
       "Content-Type": "application/json",
       ...(backendApiKey && { "X-API-Key": backendApiKey }),
+      // Forward the original client IP for rate limiting
+      ...(clientIp && { "X-Forwarded-For": clientIp }),
       ...args.headers,
     },
     body: args.body,

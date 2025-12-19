@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
-import { SentimentType } from "@prisma/client";
+import { SentimentType, ProposalStatus } from "@prisma/client";
 import { prisma } from "../../services";
+import { validateGuildId } from "../../middleware/auth.middleware";
 
 /**
  * Submit a comment from Discord
@@ -49,6 +50,15 @@ export const submitComment = async (req: Request, res: Response) => {
       }
     }
 
+    // Validate guild ID matches registered Discord server for this DRep
+    const guildValidation = validateGuildId(req, guildId);
+    if (!guildValidation.valid) {
+      return res.status(403).json({
+        error: "Unauthorized Discord server",
+        message: guildValidation.error,
+      });
+    }
+
     // Verify DRep is registered and approved
     const drepRegistration = await prisma.drepRegistration.findUnique({
       where: { drepId },
@@ -58,6 +68,26 @@ export const submitComment = async (req: Request, res: Response) => {
       return res.status(403).json({
         error: "DRep not authorized",
         message: "This DRep is not authorized for sentiment collection",
+      });
+    }
+
+    // Verify proposal exists and is still active
+    const proposal = await prisma.proposal.findUnique({
+      where: { proposalId },
+      select: { status: true },
+    });
+
+    if (!proposal) {
+      return res.status(404).json({
+        error: "Proposal not found",
+        message: "This proposal does not exist in the database",
+      });
+    }
+
+    if (proposal.status !== ProposalStatus.ACTIVE) {
+      return res.status(400).json({
+        error: "Proposal not active",
+        message: "Comments can only be submitted for active proposals",
       });
     }
 
@@ -77,9 +107,41 @@ export const submitComment = async (req: Request, res: Response) => {
       },
     });
 
-    // Create comment (messageId is unique, so duplicates will fail)
-    try {
-      await prisma.discordComment.create({
+    // Find existing reaction for this user on this proposal
+    // Comments are now stored as part of the reaction record
+    const existingReaction = await prisma.discordReaction.findUnique({
+      where: {
+        proposalId_drepId_guildId_discordUserId: {
+          proposalId,
+          drepId,
+          guildId,
+          discordUserId,
+        },
+      },
+    });
+
+    if (existingReaction) {
+      // Update existing reaction with the comment
+      await prisma.discordReaction.update({
+        where: { id: existingReaction.id },
+        data: {
+          comment: content,
+          messageId,
+          // Update sentiment if provided
+          ...(sentimentUpper && { sentiment: sentimentUpper }),
+        },
+      });
+    } else {
+      // No existing reaction - create one with the comment
+      // Sentiment is required for a reaction, use provided or default to comment-only
+      if (!sentimentUpper) {
+        return res.status(400).json({
+          error: "Missing sentiment",
+          message: "A sentiment (yes/no/abstain) is required when submitting a comment without an existing vote",
+        });
+      }
+
+      await prisma.discordReaction.create({
         data: {
           proposalId,
           drepId,
@@ -87,24 +149,15 @@ export const submitComment = async (req: Request, res: Response) => {
           channelId,
           discordUserId,
           discordUsername: discordUsername || "Unknown",
-          messageId,
-          content,
           sentiment: sentimentUpper,
+          comment: content,
+          messageId,
         },
       });
-    } catch (error: any) {
-      // Handle duplicate messageId
-      if (error.code === "P2002") {
-        return res.status(409).json({
-          error: "Duplicate comment",
-          message: "This message has already been recorded",
-        });
-      }
-      throw error;
     }
 
-    // Update aggregated sentiment summary
-    await updateSentimentSummary(proposalId, drepId);
+    // Update aggregated sentiment summary in GuildProposalPost
+    await updateSentimentSummary(proposalId, drepId, guildId);
 
     return res.status(200).json({
       success: true,
@@ -121,12 +174,14 @@ export const submitComment = async (req: Request, res: Response) => {
 
 /**
  * Update the aggregated sentiment summary for a proposal
+ * Updates counts in GuildProposalPost (combined with proposal post tracking)
  */
 async function updateSentimentSummary(
   proposalId: string,
-  drepId: string
+  drepId: string,
+  guildId: string
 ): Promise<void> {
-  // Count reactions by sentiment
+  // Count reactions by sentiment and comments (reactions with non-null comment)
   const [yesCount, noCount, abstainCount, commentCount] = await Promise.all([
     prisma.discordReaction.count({
       where: { proposalId, drepId, sentiment: "YES" },
@@ -137,25 +192,18 @@ async function updateSentimentSummary(
     prisma.discordReaction.count({
       where: { proposalId, drepId, sentiment: "ABSTAIN" },
     }),
-    prisma.discordComment.count({
-      where: { proposalId, drepId },
+    prisma.discordReaction.count({
+      where: { proposalId, drepId, comment: { not: null } },
     }),
   ]);
 
-  // Upsert summary
-  await prisma.proposalSentiment.upsert({
+  // Update sentiment counts in GuildProposalPost
+  // The post should already exist (created when proposal was posted to Discord)
+  await prisma.guildProposalPost.update({
     where: {
-      proposalId_drepId: { proposalId, drepId },
+      guildId_drepId_proposalId: { guildId, drepId, proposalId },
     },
-    update: {
-      yesCount,
-      noCount,
-      abstainCount,
-      commentCount,
-    },
-    create: {
-      proposalId,
-      drepId,
+    data: {
       yesCount,
       noCount,
       abstainCount,

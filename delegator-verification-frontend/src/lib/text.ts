@@ -1,5 +1,5 @@
 // These texts can be customized by each DRep
-const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME || "DRep";
+const DREP_NAME = process.env.NEXT_PUBLIC_DREP_NAME;
 
 export const TITLE_TEXT = `Verify as ${DREP_NAME} Delegator`;
 
@@ -20,5 +20,5 @@ export enum ERROR_TEXT {
 }
 
 export enum SUCCESS_TEXT {
-  API = "You are now verified! You can participate in governance feedback.",
+  API = 'You are now verified! Please click "Continue in Discord" to participate in governance feedback.',
 }

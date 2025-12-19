@@ -14,6 +14,8 @@ import type {
   VoteRecord,
   NCLYearData,
   NCLDisplayData,
+  SentimentResponse,
+  SentimentReactionsResponse,
 } from "@/types/governance";
 
 /**
@@ -236,4 +238,259 @@ function transformVoteRecord(vote: VoteRecord): VoteRecord {
     anchorHash: vote.anchorHash,
     votedAt: vote.votedAt,
   };
+}
+
+/**
+ * Fetch sentiment summary for a proposal filtered by DRep
+ * @param proposalId - The proposal ID (gov_action bech32 or txHash:certIndex)
+ * @param drepId - The DRep ID (CIP-105 format)
+ * @param token - JWT token for authentication
+ * Returns: Sentiment summary with yes/no/abstain counts
+ */
+export async function fetchSentiment(
+  proposalId: string,
+  drepId: string,
+  token: string
+): Promise<SentimentResponse | null> {
+  try {
+    return await fetchApiWithAuth<SentimentResponse>(
+      API_ENDPOINTS.sentiment(proposalId, drepId),
+      token
+    );
+  } catch (error) {
+    console.error(`Failed to fetch sentiment for proposal ${proposalId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch individual sentiment reactions for a proposal filtered by DRep
+ * @param proposalId - The proposal ID
+ * @param drepId - The DRep ID
+ * @param token - JWT token for authentication
+ * Returns: Individual reactions with delegator details
+ */
+export async function fetchSentimentReactions(
+  proposalId: string,
+  drepId: string,
+  token: string
+): Promise<SentimentReactionsResponse | null> {
+  try {
+    return await fetchApiWithAuth<SentimentReactionsResponse>(
+      API_ENDPOINTS.sentimentReactions(proposalId, drepId),
+      token
+    );
+  } catch (error) {
+    console.error(`Failed to fetch sentiment reactions for proposal ${proposalId}:`, error);
+    return null;
+  }
+}
+
+// ============================================================================
+// Auth API Functions
+// ============================================================================
+
+import type {
+  SignInResponse,
+  AuthMeResponse,
+  ClaimDrepResponse,
+  ApiKeyResponse,
+  ResetApiKeyResponse,
+  DrepRegisterRequest,
+  DrepRegisterResponse,
+  DrepStatusResponse,
+} from "@/types/auth";
+
+/**
+ * Generic POST fetch wrapper with error handling
+ */
+async function postApi<T>(
+  url: string,
+  body: unknown,
+  token?: string
+): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `API Error (${response.status})`);
+  }
+
+  return data;
+}
+
+/**
+ * Generic GET fetch wrapper with JWT token
+ */
+async function fetchApiWithAuth<T>(url: string, token: string): Promise<T> {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `API Error (${response.status})`);
+  }
+
+  return data;
+}
+
+/**
+ * Sign in with wallet address and signature
+ * Sends signature to backend for verification before JWT generation
+ */
+export async function signIn(
+  walletAddress: string,
+  signature: { signature: string; key: string },
+  nonce: string
+): Promise<SignInResponse> {
+  return postApi<SignInResponse>(API_ENDPOINTS.authSignIn, {
+    walletAddress,
+    signature,
+    nonce,
+  });
+}
+
+/**
+ * Get current user profile
+ * Requires JWT token
+ */
+export async function getMe(token: string): Promise<AuthMeResponse> {
+  return fetchApiWithAuth<AuthMeResponse>(API_ENDPOINTS.authMe, token);
+}
+
+/**
+ * Claim a DRep registration
+ * Links authenticated user to a DRep registration
+ */
+export async function claimDrep(
+  token: string,
+  drepId: string
+): Promise<ClaimDrepResponse> {
+  return postApi<ClaimDrepResponse>(
+    API_ENDPOINTS.authClaimDrep,
+    { drepId },
+    token
+  );
+}
+
+/**
+ * Get DRep API key
+ * Only for linked and approved DReps
+ */
+export async function getApiKey(token: string): Promise<ApiKeyResponse> {
+  return fetchApiWithAuth<ApiKeyResponse>(API_ENDPOINTS.authApiKey, token);
+}
+
+/**
+ * Reset DRep API key
+ * Self-service for approved DReps
+ */
+export async function resetApiKey(token: string): Promise<ResetApiKeyResponse> {
+  return postApi<ResetApiKeyResponse>(API_ENDPOINTS.authResetApiKey, {}, token);
+}
+
+/**
+ * Register a new DRep
+ * Requires JWT authentication - verifies DRep ownership on backend
+ * Creates a PENDING registration
+ */
+export async function registerDrep(
+  token: string,
+  data: DrepRegisterRequest
+): Promise<DrepRegisterResponse> {
+  return postApi<DrepRegisterResponse>(API_ENDPOINTS.drepRegister, data, token);
+}
+
+/**
+ * Get DRep registration status
+ * Public endpoint - no auth required
+ */
+export async function getDrepStatus(
+  drepId: string
+): Promise<DrepStatusResponse> {
+  return fetchApi<DrepStatusResponse>(API_ENDPOINTS.drepStatus(drepId));
+}
+
+// ============================================================================
+// Admin API Functions
+// ============================================================================
+
+import type {
+  AdminCheckResponse,
+  AdminListDrepsResponse,
+  AdminApproveDrepRequest,
+  AdminApproveDrepResponse,
+  AdminRejectDrepRequest,
+  AdminRejectDrepResponse,
+} from "@/types/auth";
+
+/**
+ * Check if current user has admin privileges
+ * Returns 200 if admin, 403 if not
+ */
+export async function checkAdminStatus(token: string): Promise<AdminCheckResponse> {
+  return fetchApiWithAuth<AdminCheckResponse>(API_ENDPOINTS.adminCheck, token);
+}
+
+/**
+ * List all DRep registrations (admin only)
+ * @param token JWT token
+ * @param status Optional filter by status
+ */
+export async function listDrepRegistrations(
+  token: string,
+  status?: "PENDING" | "APPROVED" | "REJECTED"
+): Promise<AdminListDrepsResponse> {
+  const url = status
+    ? `${API_ENDPOINTS.adminListDreps}?status=${status}`
+    : API_ENDPOINTS.adminListDreps;
+  return fetchApiWithAuth<AdminListDrepsResponse>(url, token);
+}
+
+/**
+ * Approve a DRep registration (admin only)
+ */
+export async function approveDrep(
+  token: string,
+  drepId: string,
+  data: AdminApproveDrepRequest
+): Promise<AdminApproveDrepResponse> {
+  return postApi<AdminApproveDrepResponse>(
+    API_ENDPOINTS.adminApproveDrep(drepId),
+    data,
+    token
+  );
+}
+
+/**
+ * Reject a DRep registration (admin only)
+ */
+export async function rejectDrep(
+  token: string,
+  drepId: string,
+  data: AdminRejectDrepRequest
+): Promise<AdminRejectDrepResponse> {
+  return postApi<AdminRejectDrepResponse>(
+    API_ENDPOINTS.adminRejectDrep(drepId),
+    data,
+    token
+  );
 }

@@ -12,6 +12,8 @@ import userRouter from "./routes/user.route";
 import overviewRouter from "./routes/overview.route";
 import proposalRouter from "./routes/proposal.route";
 import sentimentRouter from "./routes/sentiment.route";
+import authRouter from "./routes/auth.route";
+import adminRouter from "./routes/admin.route";
 import { apiKeyAuth } from "./middleware/auth.middleware";
 import { startAllJobs } from "./jobs";
 
@@ -25,13 +27,23 @@ app.use(helmet());
 // Security: CORS - allow all origins
 app.use(cors());
 
-// Security: Rate limiting
+// Trust proxy (needed for rate limiting behind reverse proxy/Next.js)
+// This allows express-rate-limit to use X-Forwarded-For header for client IP
+app.set("trust proxy", 1);
+
+// Security: Rate limiting (per client IP)
+// Uses X-Forwarded-For header from Next.js proxy to get real client IP
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000"), // Default: 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "100"), // Default: 100 requests per window
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS!),
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS!),
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: { error: "Too many requests, please try again later." },
+  // Use the client's real IP for rate limiting (from X-Forwarded-For or direct connection)
+  keyGenerator: (req) => {
+    // req.ip uses X-Forwarded-For when trust proxy is enabled
+    return req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0] || "unknown";
+  },
 });
 
 app.use(limiter);
@@ -49,12 +61,22 @@ if (fs.existsSync(swaggerPath)) {
   );
 }
 
-// Apply API key authentication to protected routes
+// Auth routes (public and JWT-authenticated)
+app.use("/auth", authRouter);
+
+// Admin routes (JWT-authenticated with wallet address check)
+app.use("/admin", adminRouter);
+
+// Public routes (governance data visible to all)
+app.use("/overview", overviewRouter);
+app.use("/proposal", proposalRouter);
+
+// Per-DRep API key authenticated routes
 app.use("/data", apiKeyAuth, dataRouter);
 app.use("/user", apiKeyAuth, userRouter);
-app.use("/overview", apiKeyAuth, overviewRouter);
-app.use("/proposal", apiKeyAuth, proposalRouter);
-app.use("/sentiment", apiKeyAuth, sentimentRouter);
+
+// Sentiment routes handle auth per-endpoint (public, per-DRep, or admin)
+app.use("/sentiment", sentimentRouter);
 
 // Error handling middleware
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -73,7 +95,7 @@ if (process.env.DISABLE_CRON_IN_API !== "true") {
 }
 
 // Start the server
-const port = parseInt(process.env.PORT || "3000");
+const port = parseInt(process.env.PORT!);
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

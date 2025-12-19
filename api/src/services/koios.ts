@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from "axios";
 import { withRetry, type RetryOptions } from "./ingestion/utils";
 
-const BASE_URL = process.env.KOIOS_BASE_URL || "https://api.koios.rest/api/v1";
+const BASE_URL = process.env.KOIOS_BASE_URL;
 
 // Dedicated retry configuration for Koios API calls.
 // Koios rate limits can be hit during heavy syncs, so we:
@@ -80,4 +80,59 @@ export async function koiosPost<T>(url: string, data?: any): Promise<T> {
     },
     KOIOS_RETRY_OPTIONS
   );
+}
+
+/**
+ * Account info response from Koios
+ */
+export interface KoiosAccountInfo {
+  stake_address: string;
+  status: string;
+  delegated_pool: string | null;
+  delegated_drep: string | null;
+  total_balance: string;
+  utxo: string;
+  rewards: string;
+  withdrawals: string;
+  rewards_available: string;
+}
+
+/**
+ * Check delegation status for a stake address
+ * @param stakeAddress - The stake address to check (stake1...)
+ * @returns Account info including DRep delegation status
+ */
+export async function checkStakeAddressDelegation(
+  stakeAddress: string
+): Promise<{
+  isRegistered: boolean;
+  isDRepDelegated: boolean;
+  delegatedDRepId: string | null;
+  totalBalance: string | null;
+}> {
+  try {
+    const accounts = await koiosPost<KoiosAccountInfo[]>("/account_info", {
+      _stake_addresses: [stakeAddress],
+    });
+
+    if (!accounts || accounts.length === 0) {
+      return {
+        isRegistered: false,
+        isDRepDelegated: false,
+        delegatedDRepId: null,
+        totalBalance: null,
+      };
+    }
+
+    const account = accounts[0];
+    return {
+      isRegistered: account.status === "registered",
+      isDRepDelegated: !!account.delegated_drep,
+      delegatedDRepId: account.delegated_drep,
+      totalBalance: account.total_balance,
+    };
+  } catch (error) {
+    console.error("Error checking stake address delegation:", error);
+    throw error;
+  }
 }
