@@ -193,6 +193,8 @@ const governanceSlice = createSlice({
       .addCase(loadGovernanceActionDetail.pending, (state) => {
         state.isLoadingDetail = true;
         state.detailError = null;
+        // Clear old selectedAction to prevent stale data being used by child components
+        state.selectedAction = null;
       })
       .addCase(loadGovernanceActionDetail.fulfilled, (state, action) => {
         state.isLoadingDetail = false;
