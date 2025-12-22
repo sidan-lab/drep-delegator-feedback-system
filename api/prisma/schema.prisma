@@ -301,11 +301,17 @@ model GuildProposalPost {
   drepId        String   // DRep ID (CIP-129 format)
   proposalId    String   // Cardano governance action ID
   threadId      String   // Discord forum thread ID
-  // Aggregated sentiment counts
+  // Aggregated sentiment counts (from delegator reactions)
   yesCount      Int      @default(0)
   noCount       Int      @default(0)
   abstainCount  Int      @default(0)
   commentCount  Int      @default(0)
+  // DRep on-chain vote tracking (for Discord display)
+  drepVote            VoteType?   // DRep's on-chain vote (YES, NO, ABSTAIN)
+  drepRationaleUrl    String?     // Rationale anchor URL
+  drepVoteTxHash      String?     // Transaction hash of the vote
+  drepVotedAt         DateTime?   // When the DRep voted on-chain
+  discordNotifiedAt   DateTime?   // When Discord was last notified of DRep vote
   postedAt      DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

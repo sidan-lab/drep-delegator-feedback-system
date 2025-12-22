@@ -16,6 +16,7 @@ import { commands } from "./commands";
 import { handleMessage } from "./events/messageHandler";
 import { handleButtonInteraction } from "./events/buttonHandler";
 import { initProposalSync } from "./scheduled/proposalSync";
+import { initDrepVoteNotifier } from "./scheduled/drepVoteNotifier";
 
 // Validate configuration before starting
 validateConfig();
@@ -75,6 +76,9 @@ client.once(Events.ClientReady, async (readyClient) => {
   } else {
     console.log(`[Bot] FORUM_CHANNEL_ID not set - proposal sync disabled`);
   }
+
+  // Initialize DRep vote notifier (polls for pending notifications)
+  initDrepVoteNotifier(client);
 });
 
 // Event: Interaction (slash commands and buttons)

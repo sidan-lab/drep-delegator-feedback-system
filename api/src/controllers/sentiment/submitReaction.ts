@@ -38,7 +38,9 @@ export const submitReaction = async (req: Request, res: Response) => {
     }
 
     // Validate sentiment type
+    console.log(`[submitReaction] Received sentiment: "${sentiment}" (type: ${typeof sentiment})`);
     const sentimentUpper = sentiment.toUpperCase() as SentimentType;
+    console.log(`[submitReaction] Converted to upper: "${sentimentUpper}"`);
     if (!["YES", "NO", "ABSTAIN"].includes(sentimentUpper)) {
       return res.status(400).json({
         error: "Invalid sentiment",
@@ -113,6 +115,7 @@ export const submitReaction = async (req: Request, res: Response) => {
 
     if (action === "add") {
       // Upsert reaction (allows changing vote)
+      console.log(`[submitReaction] Upserting vote for user ${discordUserId}: sentiment="${sentimentUpper}"`);
       await prisma.discordReaction.upsert({
         where: {
           proposalId_drepId_guildId_discordUserId: {

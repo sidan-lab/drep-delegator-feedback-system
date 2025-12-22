@@ -9,6 +9,7 @@ const commands_1 = require("./commands");
 const messageHandler_1 = require("./events/messageHandler");
 const buttonHandler_1 = require("./events/buttonHandler");
 const proposalSync_1 = require("./scheduled/proposalSync");
+const drepVoteNotifier_1 = require("./scheduled/drepVoteNotifier");
 // Validate configuration before starting
 (0, config_1.validateConfig)();
 // Create Discord client with required intents
@@ -59,6 +60,8 @@ client.once(discord_js_1.Events.ClientReady, async (readyClient) => {
     else {
         console.log(`[Bot] FORUM_CHANNEL_ID not set - proposal sync disabled`);
     }
+    // Initialize DRep vote notifier (polls for pending notifications)
+    (0, drepVoteNotifier_1.initDrepVoteNotifier)(client);
 });
 // Event: Interaction (slash commands and buttons)
 client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {

@@ -39,11 +39,9 @@ const limiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: { error: "Too many requests, please try again later." },
-  // Use the client's real IP for rate limiting (from X-Forwarded-For or direct connection)
-  keyGenerator: (req) => {
-    // req.ip uses X-Forwarded-For when trust proxy is enabled
-    return req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0] || "unknown";
-  },
+  // Disable IPv6 validation since we trust proxy and use req.ip
+  // The trust proxy setting handles X-Forwarded-For correctly
+  validate: { xForwardedForHeader: false },
 });
 
 app.use(limiter);

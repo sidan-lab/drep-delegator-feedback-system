@@ -322,13 +322,13 @@ export default function GovernanceDetail() {
             {/* Right Column - Sidebar */}
             <div className="space-y-6">
               {/* Vote on Proposal Card */}
-              {parsedProposalHash && (
+              {parsedProposalHash && selectedAction.proposalId && (
                 <VoteOnProposal
                   txHash={parsedProposalHash.txHash}
                   certIndex={parsedProposalHash.certIndex}
                   proposalTitle={selectedAction.title}
                   status={selectedAction.status}
-                  proposalId={selectedAction.hash}
+                  proposalId={selectedAction.proposalId}
                 />
               )}
 

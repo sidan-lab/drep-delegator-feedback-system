@@ -193,8 +193,9 @@ const governanceSlice = createSlice({
       .addCase(loadGovernanceActionDetail.pending, (state) => {
         state.isLoadingDetail = true;
         state.detailError = null;
-        // Clear old selectedAction to prevent stale data being used by child components
-        state.selectedAction = null;
+        // NOTE: Do NOT clear selectedAction here - this causes VoteOnProposal to unmount
+        // during polling, which closes the voting modal prematurely.
+        // Keep existing data visible while refreshing (stale-while-revalidate pattern).
       })
       .addCase(loadGovernanceActionDetail.fulfilled, (state, action) => {
         state.isLoadingDetail = false;

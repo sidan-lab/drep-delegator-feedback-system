@@ -53,6 +53,7 @@ class ApiClient {
     }
     /**
      * Submit a comment
+     * Note: Comments do not affect vote sentiment - only button clicks count as votes
      */
     async submitComment(data) {
         try {
@@ -190,6 +191,44 @@ class ApiClient {
             return {
                 success: false,
                 posted: false,
+            };
+        }
+    }
+    /**
+     * Get pending DRep vote notifications
+     * Returns GuildProposalPosts where a DRep has voted but Discord hasn't been notified
+     */
+    async getPendingDrepVoteNotifications(drepId) {
+        try {
+            const params = drepId ? { drepId } : {};
+            const response = await this.client.get("/sentiment/pending-drep-vote-notifications", { params });
+            return response.data;
+        }
+        catch (error) {
+            console.error(`[API] Failed to get pending DRep vote notifications:`, error.response?.data || error.message);
+            return {
+                success: false,
+                notifications: [],
+                count: 0,
+            };
+        }
+    }
+    /**
+     * Mark a DRep vote notification as sent to Discord
+     */
+    async markDrepVoteNotified(postId) {
+        try {
+            const response = await this.client.post("/sentiment/mark-drep-vote-notified", {
+                postId,
+            });
+            console.log(`[API] DRep vote notification marked as sent for post ${postId}`);
+            return response.data;
+        }
+        catch (error) {
+            console.error(`[API] Failed to mark DRep vote notified:`, error.response?.data || error.message);
+            return {
+                success: false,
+                message: error.response?.data?.message || "Failed to mark notification as sent",
             };
         }
     }

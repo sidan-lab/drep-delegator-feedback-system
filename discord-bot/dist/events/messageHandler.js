@@ -48,56 +48,6 @@ async function isProposalThread(message) {
     }
 }
 /**
- * Detect sentiment from message content (basic keyword analysis)
- */
-function detectSentiment(content) {
-    const lowerContent = content.toLowerCase();
-    // Check for explicit sentiment indicators
-    const yesIndicators = [
-        "i support",
-        "i agree",
-        "yes",
-        "in favor",
-        "approve",
-        "+1",
-        "thumbs up",
-        "good proposal",
-        "great idea",
-    ];
-    const noIndicators = [
-        "i oppose",
-        "i disagree",
-        "no",
-        "against",
-        "reject",
-        "-1",
-        "thumbs down",
-        "bad proposal",
-        "terrible idea",
-    ];
-    const abstainIndicators = [
-        "abstain",
-        "neutral",
-        "undecided",
-        "not sure",
-        "need more info",
-        "on the fence",
-    ];
-    for (const indicator of yesIndicators) {
-        if (lowerContent.includes(indicator))
-            return "yes";
-    }
-    for (const indicator of noIndicators) {
-        if (lowerContent.includes(indicator))
-            return "no";
-    }
-    for (const indicator of abstainIndicators) {
-        if (lowerContent.includes(indicator))
-            return "abstain";
-    }
-    return undefined;
-}
-/**
  * Handle new message event
  */
 async function handleMessage(message) {
@@ -121,9 +71,7 @@ async function handleMessage(message) {
         if (!guild)
             return;
         const channel = message.channel;
-        // Detect sentiment from message content
-        const sentiment = detectSentiment(message.content);
-        // Submit comment to API
+        // Submit comment to API (no sentiment detection - only button votes count)
         await api_1.apiClient.submitComment({
             proposalId,
             drepId: config_1.config.drep.id,
@@ -135,10 +83,8 @@ async function handleMessage(message) {
             discordUsername: message.author.username,
             content: message.content,
             messageId: message.id,
-            sentiment,
         });
-        console.log(`[Message] Comment collected from ${message.author.username} on proposal ${proposalId}` +
-            (sentiment ? ` (sentiment: ${sentiment})` : ""));
+        console.log(`[Message] Comment collected from ${message.author.username} on proposal ${proposalId}`);
     }
     catch (error) {
         console.error("[Message] Error handling message:", error);

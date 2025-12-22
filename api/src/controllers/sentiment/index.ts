@@ -5,3 +5,4 @@ export * from "./getSentiment";
 export * from "./verifyDelegator";
 export * from "./proposalPost";
 export * from "./drepRegistration";
+export * from "./notifyDrepVote";

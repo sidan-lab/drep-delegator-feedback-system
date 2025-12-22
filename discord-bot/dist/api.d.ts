@@ -33,6 +33,7 @@ declare class ApiClient {
     }>;
     /**
      * Submit a comment
+     * Note: Comments do not affect vote sentiment - only button clicks count as votes
      */
     submitComment(data: {
         proposalId: string;
@@ -45,7 +46,6 @@ declare class ApiClient {
         discordUsername: string;
         content: string;
         messageId: string;
-        sentiment?: "yes" | "no" | "abstain";
     }): Promise<void>;
     /**
      * Fetch active governance proposals
@@ -139,6 +139,32 @@ declare class ApiClient {
             threadId: string;
             postedAt: string;
         };
+    }>;
+    /**
+     * Get pending DRep vote notifications
+     * Returns GuildProposalPosts where a DRep has voted but Discord hasn't been notified
+     */
+    getPendingDrepVoteNotifications(drepId?: string): Promise<{
+        success: boolean;
+        notifications: Array<{
+            id: string;
+            guildId: string;
+            drepId: string;
+            proposalId: string;
+            threadId: string;
+            drepVote: "YES" | "NO" | "ABSTAIN";
+            drepRationaleUrl: string | null;
+            drepVoteTxHash: string | null;
+            drepVotedAt: string | null;
+        }>;
+        count: number;
+    }>;
+    /**
+     * Mark a DRep vote notification as sent to Discord
+     */
+    markDrepVoteNotified(postId: string): Promise<{
+        success: boolean;
+        message: string;
     }>;
 }
 export declare const apiClient: ApiClient;

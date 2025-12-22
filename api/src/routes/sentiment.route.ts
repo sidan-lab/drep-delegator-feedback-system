@@ -446,7 +446,7 @@ router.post("/comment", apiKeyAuth, sentimentController.submitComment); // Per-D
  *                     totalReactions:
  *                       type: integer
  */
-router.get("/:proposal_id", jwtAuth, sentimentController.getSentiment); // JWT auth for frontend DRep viewing
+// Route moved to end of file to avoid matching before specific routes
 
 /**
  * @openapi
@@ -487,7 +487,7 @@ router.get("/:proposal_id", jwtAuth, sentimentController.getSentiment); // JWT a
  *       200:
  *         description: Comments retrieved successfully
  */
-router.get("/:proposal_id/comments", jwtAuth, sentimentController.getComments); // JWT auth for frontend DRep viewing
+// Route moved to end of file to avoid matching before specific routes
 
 /**
  * @openapi
@@ -535,7 +535,7 @@ router.get("/:proposal_id/comments", jwtAuth, sentimentController.getComments); 
  *       200:
  *         description: Reactions retrieved successfully
  */
-router.get("/:proposal_id/reactions", jwtAuth, sentimentController.getReactions); // JWT auth for frontend DRep viewing
+// Route moved to end of file to avoid matching before specific routes
 
 // ============================================
 // Delegator Verification Endpoints
@@ -941,5 +941,153 @@ router.get("/proposal-post/:guildId/:drepId", apiKeyAuth, sentimentController.ge
  *         description: Proposal post not found
  */
 router.delete("/proposal-post", apiKeyAuth, sentimentController.deleteProposalPost); // Per-DRep auth
+
+// ============================================
+// DRep Vote Notification Endpoints
+// ============================================
+
+/**
+ * @openapi
+ * /sentiment/notify-drep-vote:
+ *   post:
+ *     summary: Notify that a DRep has voted on-chain
+ *     description: Called from frontend after DRep submits a vote to update Discord forum post
+ *     tags:
+ *       - DRep Vote Notification
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - drepId
+ *               - proposalId
+ *               - vote
+ *               - txHash
+ *             properties:
+ *               drepId:
+ *                 type: string
+ *                 description: DRep ID (CIP-105 or CIP-129 format)
+ *               proposalId:
+ *                 type: string
+ *                 description: Cardano governance action ID
+ *               vote:
+ *                 type: string
+ *                 enum: [Yes, No, Abstain]
+ *                 description: Vote choice
+ *               txHash:
+ *                 type: string
+ *                 description: Transaction hash of the vote
+ *               rationaleUrl:
+ *                 type: string
+ *                 description: Optional rationale anchor URL
+ *     responses:
+ *       200:
+ *         description: Notification recorded successfully
+ *       400:
+ *         description: Missing required fields
+ *       403:
+ *         description: DRep not registered or not approved
+ */
+router.post("/notify-drep-vote", jwtAuth, sentimentController.notifyDrepVote); // JWT auth for frontend DRep voting
+
+/**
+ * @openapi
+ * /sentiment/pending-drep-vote-notifications:
+ *   get:
+ *     summary: Get pending DRep vote notifications for Discord bot
+ *     description: Returns GuildProposalPosts where drepVote is set but Discord hasn't been notified
+ *     tags:
+ *       - DRep Vote Notification
+ *     security:
+ *       - ApiKeyAuth: []
+ *     parameters:
+ *       - name: drepId
+ *         in: query
+ *         required: false
+ *         description: Filter by DRep ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Pending notifications retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 notifications:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       guildId:
+ *                         type: string
+ *                       drepId:
+ *                         type: string
+ *                       proposalId:
+ *                         type: string
+ *                       threadId:
+ *                         type: string
+ *                       drepVote:
+ *                         type: string
+ *                       drepRationaleUrl:
+ *                         type: string
+ *                       drepVoteTxHash:
+ *                         type: string
+ *                       drepVotedAt:
+ *                         type: string
+ *                 count:
+ *                   type: integer
+ */
+router.get("/pending-drep-vote-notifications", apiKeyAuth, sentimentController.getPendingDrepVoteNotifications);
+
+/**
+ * @openapi
+ * /sentiment/mark-drep-vote-notified:
+ *   post:
+ *     summary: Mark a DRep vote notification as sent to Discord
+ *     description: Called by Discord bot after successfully updating the forum thread
+ *     tags:
+ *       - DRep Vote Notification
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - postId
+ *             properties:
+ *               postId:
+ *                 type: string
+ *                 description: GuildProposalPost ID
+ *     responses:
+ *       200:
+ *         description: Notification marked as sent
+ *       400:
+ *         description: Missing postId
+ *       404:
+ *         description: Post not found
+ */
+router.post("/mark-drep-vote-notified", apiKeyAuth, sentimentController.markDrepVoteNotified);
+
+// ============================================
+// Dynamic Proposal Routes (MUST BE LAST)
+// These routes use /:proposal_id which matches ANY path.
+// They must come after all specific routes to avoid incorrect matching.
+// ============================================
+router.get("/:proposal_id", jwtAuth, sentimentController.getSentiment); // JWT auth for frontend DRep viewing
+router.get("/:proposal_id/comments", jwtAuth, sentimentController.getComments); // JWT auth for frontend DRep viewing
+router.get("/:proposal_id/reactions", jwtAuth, sentimentController.getReactions); // JWT auth for frontend DRep viewing
 
 export default router;

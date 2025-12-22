@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { SentimentType, ProposalStatus } from "@prisma/client";
+import { ProposalStatus } from "@prisma/client";
 import { prisma } from "../../services";
 import { validateGuildId } from "../../middleware/auth.middleware";
 
@@ -15,10 +15,8 @@ export const submitComment = async (req: Request, res: Response) => {
       guildName,
       channelId,
       discordUserId,
-      discordUsername,
       messageId,
       content,
-      sentiment,
     } = req.body;
 
     // Validate required fields
@@ -36,18 +34,6 @@ export const submitComment = async (req: Request, res: Response) => {
         message:
           "proposalId, drepId, guildId, channelId, discordUserId, messageId, and content are required",
       });
-    }
-
-    // Validate sentiment type if provided
-    let sentimentUpper: SentimentType | null = null;
-    if (sentiment) {
-      sentimentUpper = sentiment.toUpperCase() as SentimentType;
-      if (!["YES", "NO", "ABSTAIN"].includes(sentimentUpper)) {
-        return res.status(400).json({
-          error: "Invalid sentiment",
-          message: "sentiment must be 'yes', 'no', or 'abstain'",
-        });
-      }
     }
 
     // Validate guild ID matches registered Discord server for this DRep
@@ -122,37 +108,20 @@ export const submitComment = async (req: Request, res: Response) => {
 
     if (existingReaction) {
       // Update existing reaction with the comment
+      // Note: Do NOT update sentiment - only button clicks count as votes
       await prisma.discordReaction.update({
         where: { id: existingReaction.id },
         data: {
           comment: content,
           messageId,
-          // Update sentiment if provided
-          ...(sentimentUpper && { sentiment: sentimentUpper }),
         },
       });
     } else {
-      // No existing reaction - create one with the comment
-      // Sentiment is required for a reaction, use provided or default to comment-only
-      if (!sentimentUpper) {
-        return res.status(400).json({
-          error: "Missing sentiment",
-          message: "A sentiment (yes/no/abstain) is required when submitting a comment without an existing vote",
-        });
-      }
-
-      await prisma.discordReaction.create({
-        data: {
-          proposalId,
-          drepId,
-          guildId,
-          channelId,
-          discordUserId,
-          discordUsername: discordUsername || "Unknown",
-          sentiment: sentimentUpper,
-          comment: content,
-          messageId,
-        },
+      // No existing vote - user must vote first before commenting
+      // Comments are stored as part of the reaction record, so a vote is required
+      return res.status(400).json({
+        error: "Vote required",
+        message: "Please vote on this proposal first before commenting. Use the Yes, No, or Abstain buttons.",
       });
     }
 

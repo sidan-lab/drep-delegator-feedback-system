@@ -91,8 +91,13 @@ async function handleVoteButton(interaction) {
         });
         return;
     }
-    const sentiment = parts[1].toLowerCase();
+    const rawSentiment = parts[1];
+    const sentiment = rawSentiment.toLowerCase();
     const proposalId = parts.slice(2).join("_"); // In case proposalId contains underscores
+    // Debug logging
+    console.log(`[Button] Parsing customId: "${customId}"`);
+    console.log(`[Button] Parts: ${JSON.stringify(parts)}`);
+    console.log(`[Button] Raw sentiment: "${rawSentiment}", Parsed sentiment: "${sentiment}"`);
     if (!["yes", "no", "abstain"].includes(sentiment)) {
         await interaction.reply({
             content: "Invalid vote type. Please try again.",
