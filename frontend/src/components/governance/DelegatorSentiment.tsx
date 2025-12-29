@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useWallet } from "@meshsdk/react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,12 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { fetchSentiment, fetchSentimentReactions } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import type { SentimentResponse, SentimentReaction } from "@/types/governance";
 
 interface DelegatorVote {
   id: string;
@@ -28,9 +33,7 @@ interface DelegatorVote {
   createdAt: string;
 }
 
-interface DelegatorSentimentData {
-  proposalId: string;
-  drepId: string;
+interface SentimentDisplayData {
   summary: {
     yesCount: number;
     noCount: number;
@@ -42,92 +45,6 @@ interface DelegatorSentimentData {
   };
   votes: DelegatorVote[];
 }
-
-// Mock data for demonstration
-const MOCK_SENTIMENT_DATA: DelegatorSentimentData = {
-  proposalId: "gov_action123",
-  drepId: "drep1qg...",
-  summary: {
-    yesCount: 3,
-    noCount: 2,
-    abstainCount: 1,
-    totalVotes: 6,
-    yesPercent: 50.0,
-    noPercent: 33.3,
-    abstainPercent: 16.7,
-  },
-  votes: [
-    {
-      id: "1",
-      discordUserId: "123456789",
-      discordUsername: "alice_cardano",
-      stakeAddress:
-        "stake1u8pcjgmx7962w6hey5hhsd502araxp26kdtgagakhaqtq8squng76",
-      liveStake: "125000000000", // 125,000 ADA
-      sentiment: "YES",
-      comment:
-        "I support this proposal because it aligns with the long-term vision of Cardano governance. The treasury allocation seems reasonable.",
-      createdAt: "2024-12-09T10:30:00Z",
-    },
-    {
-      id: "2",
-      discordUserId: "234567890",
-      discordUsername: "bob_delegator",
-      stakeAddress:
-        "stake1u9a3t4rgddm4expj0ucyxkxqxkxjjxjx9ctgahgahgahgahqxy57n6",
-      liveStake: "85000000000", // 85,000 ADA
-      sentiment: "YES",
-      createdAt: "2024-12-09T11:15:00Z",
-    },
-    {
-      id: "3",
-      discordUserId: "345678901",
-      discordUsername: "carol_stake",
-      stakeAddress:
-        "stake1uxpdrerp8n8fevdnvf5f8xw8j9k8w8xn8w8xn8w8xn8w8xqcvd0zz",
-      liveStake: "250000000000", // 250,000 ADA
-      sentiment: "NO",
-      comment:
-        "I think the requested amount is too high. Would support a smaller allocation.",
-      createdAt: "2024-12-09T12:00:00Z",
-    },
-    {
-      id: "4",
-      discordUserId: "456789012",
-      discordUsername: "dave_hodl",
-      stakeAddress:
-        "stake1u8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqpnxm8r",
-      liveStake: "45000000000", // 45,000 ADA
-      sentiment: "ABSTAIN",
-      comment: "Need more information before I can make a decision.",
-      createdAt: "2024-12-09T13:30:00Z",
-    },
-    {
-      id: "5",
-      discordUserId: "567890123",
-      discordUsername: "eve_governance",
-      stakeAddress:
-        "stake1uy8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqr9f2h4",
-      liveStake: "180000000000", // 180,000 ADA
-      sentiment: "YES",
-      comment:
-        "Great initiative! This will help bootstrap more development on Cardano.",
-      createdAt: "2024-12-09T14:45:00Z",
-    },
-    {
-      id: "6",
-      discordUserId: "678901234",
-      discordUsername: "frank_pool",
-      stakeAddress:
-        "stake1uz9w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xn8w8xqhvw3k7",
-      liveStake: "320000000000", // 320,000 ADA
-      sentiment: "NO",
-      comment:
-        "The timeline seems unrealistic. I'd vote yes if they extended it by 3 months.",
-      createdAt: "2024-12-09T15:20:00Z",
-    },
-  ],
-};
 
 /**
  * Format lovelace to ADA with K/M suffix
@@ -194,21 +111,153 @@ interface DelegatorSentimentProps {
   proposalId: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * Transform API response to display format
+ */
+function transformSentimentData(
+  sentimentResponse: SentimentResponse,
+  reactions: SentimentReaction[]
+): SentimentDisplayData {
+  const { totals } = sentimentResponse;
+  const totalVotes = totals.totalReactions;
+
+  return {
+    summary: {
+      yesCount: totals.yesCount,
+      noCount: totals.noCount,
+      abstainCount: totals.abstainCount,
+      totalVotes,
+      yesPercent: totalVotes > 0 ? (totals.yesCount / totalVotes) * 100 : 0,
+      noPercent: totalVotes > 0 ? (totals.noCount / totalVotes) * 100 : 0,
+      abstainPercent:
+        totalVotes > 0 ? (totals.abstainCount / totalVotes) * 100 : 0,
+    },
+    votes: reactions.map((r) => ({
+      id: r.id,
+      discordUserId: r.discordUserId,
+      discordUsername: r.discordUsername,
+      stakeAddress: r.stakeAddress || "",
+      liveStake: r.liveStake || "0",
+      sentiment: r.sentiment,
+      comment: r.comment,
+      createdAt: r.createdAt,
+    })),
+  };
+}
+
 export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
-  const { connected } = useWallet();
+  const { connected, wallet } = useWallet();
+  const { isAuthenticated, jwtToken } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [drepId, setDrepId] = useState<string | null>(null);
+  const [sentimentData, setSentimentData] =
+    useState<SentimentDisplayData | null>(null);
 
-  // TODO: In real implementation, fetch from API using proposalId and drepId
-  // For now, use mock data for POC demo
-  const sentimentData = MOCK_SENTIMENT_DATA;
+  // Track if we've already loaded data for this proposal to prevent duplicate fetches
+  const loadedProposalRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
 
-  // For demo purposes, simulate DRep connection when wallet is connected
-  // In real implementation: fetch drepId from wallet.getDRep() and use it to fetch sentiment data
-  const isDrep = connected;
+  // Fetch DRep ID from connected wallet
+  // Note: Wallet returns CIP-105 format, backend will resolve to CIP-129
+  const fetchDrepId = useCallback(async () => {
+    if (!wallet) return null;
 
-  // If not connected as DRep, show connect prompt
-  if (!isDrep) {
+    try {
+      const dRep = await wallet.getDRep();
+      if (dRep?.dRepIDCip105) {
+        return dRep.dRepIDCip105;
+      }
+      return null;
+    } catch (err) {
+      console.error("Failed to get DRep ID:", err);
+      return null;
+    }
+  }, [wallet]);
+
+  // Fetch sentiment data when wallet is connected, authenticated, and DRep ID is available
+  useEffect(() => {
+    const loadSentimentData = async () => {
+      // Skip if not ready
+      if (!connected || !wallet || !isAuthenticated || !jwtToken) {
+        setSentimentData(null);
+        setDrepId(null);
+        loadedProposalRef.current = null;
+        return;
+      }
+
+      // Skip if already loading or already loaded for this proposal
+      if (isLoadingRef.current) {
+        return;
+      }
+      if (loadedProposalRef.current === proposalId) {
+        return;
+      }
+
+      isLoadingRef.current = true;
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Get DRep ID from wallet
+        const walletDrepId = await fetchDrepId();
+
+        if (!walletDrepId) {
+          setError("Could not get DRep ID from wallet. Please ensure your wallet is registered as a DRep.");
+          setIsLoading(false);
+          isLoadingRef.current = false;
+          return;
+        }
+
+        setDrepId(walletDrepId);
+
+        // Fetch sentiment summary and reactions in parallel (with JWT auth)
+        const [summaryResponse, reactionsResponse] = await Promise.all([
+          fetchSentiment(proposalId, walletDrepId, jwtToken),
+          fetchSentimentReactions(proposalId, walletDrepId, jwtToken),
+        ]);
+
+        if (!summaryResponse) {
+          // No sentiment data yet - show empty state
+          setSentimentData({
+            summary: {
+              yesCount: 0,
+              noCount: 0,
+              abstainCount: 0,
+              totalVotes: 0,
+              yesPercent: 0,
+              noPercent: 0,
+              abstainPercent: 0,
+            },
+            votes: [],
+          });
+        } else {
+          const transformed = transformSentimentData(
+            summaryResponse,
+            reactionsResponse?.reactions || []
+          );
+          setSentimentData(transformed);
+        }
+
+        // Mark this proposal as loaded
+        loadedProposalRef.current = proposalId;
+      } catch (err) {
+        console.error("Failed to load sentiment data:", err);
+        setError("Failed to load delegator sentiment data.");
+      } finally {
+        setIsLoading(false);
+        isLoadingRef.current = false;
+      }
+    };
+
+    loadSentimentData();
+  }, [connected, wallet, isAuthenticated, jwtToken, proposalId, fetchDrepId]);
+
+  const isDrep = connected && isAuthenticated && drepId;
+
+  // If not connected or not authenticated, show connect prompt
+  if (!connected || !isAuthenticated) {
     return (
       <Card className="p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -235,8 +284,93 @@ export function DelegatorSentiment({ proposalId }: DelegatorSentimentProps) {
     );
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
+        </div>
+        <div className="flex items-center gap-3 text-destructive bg-destructive/10 p-4 rounded-lg">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm">{error}</p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Not a DRep
+  if (!isDrep || !sentimentData) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
+        </div>
+        <div className="text-center py-8 space-y-4">
+          <div className="flex justify-center">
+            <div className="p-4 rounded-full bg-secondary">
+              <Wallet className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-muted-foreground">
+              Your wallet is not registered as a DRep
+            </p>
+            <p className="text-sm text-muted-foreground/70">
+              Only registered DReps can view delegator sentiment
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   const { summary, votes } = sentimentData;
   const displayedVotes = isExpanded ? votes : votes.slice(0, 3);
+
+  // Empty state - no votes yet
+  if (summary.totalVotes === 0) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Your Delegator Sentiment</h3>
+        </div>
+        <div className="text-center py-8 space-y-4">
+          <div className="flex justify-center">
+            <div className="p-4 rounded-full bg-secondary">
+              <MessageSquare className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-muted-foreground">
+              No delegator feedback yet
+            </p>
+            <p className="text-sm text-muted-foreground/70">
+              Your delegators haven&apos;t submitted any sentiment for this proposal
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-6">

@@ -762,6 +762,8 @@ export const mapProposalToGovernanceAction = (
     proposalId: buildProposalIdentifier(proposal),
     hash,
     title: proposal.title,
+    description: proposal.description ?? undefined,
+    rationale: proposal.rationale ?? undefined,
     type: formatGovernanceType(proposal.governanceActionType),
     status: formatStatus(proposal.status),
     constitutionality,
@@ -792,8 +794,6 @@ export const mapProposalToGovernanceActionDetail = (
 
   return {
     ...base,
-    description: proposal.description ?? undefined,
-    rationale: proposal.rationale ?? undefined,
     votes: mappedVotes.length ? mappedVotes : undefined,
     ccVotes: mappedCcVotes.length ? mappedCcVotes : undefined,
   };

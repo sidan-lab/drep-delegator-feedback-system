@@ -1,0 +1,1 @@
+{"version":3,"file":"delegateChannel.d.ts","sourceRoot":"","sources":["../../src/utils/delegateChannel.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,EACL,MAAM,EAMP,MAAM,YAAY,CAAC;AAGpB;;GAEG;AACH,eAAO,MAAM,aAAa;;;CAWzB,CAAC;AAEF;;;GAGG;AACH,wBAAsB,8BAA8B,CAAC,MAAM,EAAE,MAAM,GAAG,OAAO,CAAC;IAC5E,OAAO,EAAE,OAAO,CAAC;IACjB,OAAO,EAAE,MAAM,CAAC;CACjB,CAAC,CAwFD"}

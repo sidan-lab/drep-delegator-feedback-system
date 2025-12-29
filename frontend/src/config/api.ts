@@ -1,24 +1,47 @@
 /**
  * API Configuration
  * Centralizes API endpoint configuration for the frontend
+ *
+ * All API calls are routed through Next.js API routes to keep
+ * the backend API key secure on the server side.
  */
 
-// API base URL - defaults to localhost:3001 for development
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-// API key for authentication
-export const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
-
-// API endpoints
+// API endpoints - these point to local Next.js API routes
+// The actual backend URL and API key are configured via server-side
+// environment variables (BACKEND_API_URL and BACKEND_API_KEY)
 export const API_ENDPOINTS = {
   // Overview endpoints
-  overview: `${API_BASE_URL}/overview`,
-  proposals: `${API_BASE_URL}/overview/proposals`,
-  ncl: `${API_BASE_URL}/overview/ncl`,
-  nclByYear: (year: number) => `${API_BASE_URL}/overview/ncl/${year}`,
+  overview: "/api/overview",
+  proposals: "/api/overview/proposals",
+  ncl: "/api/overview/ncl",
+  nclByYear: (year: number) => `/api/overview/ncl/${year}`,
 
   // Proposal detail endpoint (requires proposal_id parameter)
   proposalDetail: (proposalId: string) =>
-    `${API_BASE_URL}/proposal/${encodeURIComponent(proposalId)}`,
+    `/api/proposal/${encodeURIComponent(proposalId)}`,
+
+  // Sentiment endpoints (requires proposalId and drepId)
+  sentiment: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}?drepId=${encodeURIComponent(drepId)}`,
+  sentimentReactions: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}/reactions?drepId=${encodeURIComponent(drepId)}`,
+  sentimentComments: (proposalId: string, drepId: string) =>
+    `/api/sentiment/${encodeURIComponent(proposalId)}/comments?drepId=${encodeURIComponent(drepId)}`,
+
+  // Auth endpoints (JWT-based authentication)
+  authSignIn: "/api/auth/signin",
+  authMe: "/api/auth/me",
+  authClaimDrep: "/api/auth/claim-drep",
+  authApiKey: "/api/auth/api-key",
+  authResetApiKey: "/api/auth/reset-api-key",
+
+  // DRep registration endpoints
+  drepRegister: "/api/drep/register",
+  drepStatus: (drepId: string) => `/api/drep/${encodeURIComponent(drepId)}/status`,
+
+  // Admin endpoints (JWT-authenticated with admin wallet check)
+  adminCheck: "/api/admin/check",
+  adminListDreps: "/api/admin/drep",
+  adminApproveDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/approve`,
+  adminRejectDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/reject`,
 } as const;

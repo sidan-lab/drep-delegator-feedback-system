@@ -1,12 +1,14 @@
 import { useWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
-import { Wallet } from "lucide-react";
+import { Wallet, ShieldCheck, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ConnectWalletModal } from "./ConnectWalletModal";
+import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 
 export function ConnectWalletButton() {
   const { connected, connecting, name, wallet } = useWallet();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [address, setAddress] = useState<string>("");
   const [walletIcon, setWalletIcon] = useState<string>("");
@@ -16,14 +18,45 @@ export function ConnectWalletButton() {
     async function getWalletInfo() {
       if (connected && wallet) {
         try {
-          // Get the first used address (payment address)
-          const addresses = await wallet.getUsedAddresses();
-          if (addresses.length > 0) {
-            setAddress(addresses[0]);
-          } else {
-            // Fallback to change address if no used addresses
-            const changeAddr = await wallet.getChangeAddress();
-            setAddress(changeAddr);
+          // Try multiple methods to get an address
+          let addr = "";
+
+          // Method 1: Get used addresses
+          try {
+            const usedAddresses = await wallet.getUsedAddresses();
+            if (usedAddresses && usedAddresses.length > 0) {
+              addr = usedAddresses[0];
+            }
+          } catch {
+            // Ignore and try next method
+          }
+
+          // Method 2: Get change address
+          if (!addr) {
+            try {
+              const changeAddr = await wallet.getChangeAddress();
+              if (changeAddr) {
+                addr = changeAddr;
+              }
+            } catch {
+              // Ignore and try next method
+            }
+          }
+
+          // Method 3: Get unused addresses
+          if (!addr) {
+            try {
+              const unusedAddresses = await wallet.getUnusedAddresses();
+              if (unusedAddresses && unusedAddresses.length > 0) {
+                addr = unusedAddresses[0];
+              }
+            } catch {
+              // Ignore
+            }
+          }
+
+          if (addr) {
+            setAddress(addr);
           }
 
           // Get wallet icon from window.cardano
@@ -50,18 +83,37 @@ export function ConnectWalletButton() {
     return `${addr.slice(0, 6)}...${addr.slice(-5)}`;
   };
 
+  // Determine button state
+  const isLoading = connecting || (connected && authLoading);
+
   return (
     <>
       <Button
-        variant={connected ? "outline" : "default"}
+        variant={connected && isAuthenticated ? "outline" : "default"}
         onClick={() => setIsModalOpen(true)}
-        disabled={connecting}
+        disabled={isLoading}
         className="flex items-center gap-2"
       >
-        {connecting ? (
+        {isLoading ? (
           <>
-            <Wallet className="h-4 w-4" />
-            Connecting...
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {connecting ? "Connecting..." : "Authenticating..."}
+          </>
+        ) : connected && isAuthenticated ? (
+          <>
+            {walletIcon ? (
+              <Image
+                src={walletIcon}
+                alt={name || "wallet"}
+                width={20}
+                height={20}
+                className="rounded"
+              />
+            ) : (
+              <Wallet className="h-4 w-4" />
+            )}
+            <span>{address ? formatAddress(address) : name}</span>
+            <ShieldCheck className="h-4 w-4 text-green-500" />
           </>
         ) : connected ? (
           <>

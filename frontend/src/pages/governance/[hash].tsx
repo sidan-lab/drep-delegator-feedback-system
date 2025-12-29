@@ -315,19 +315,20 @@ export default function GovernanceDetail() {
               )}
 
               {/* Your Delegator Sentiment - Only visible to DRep wallet holders */}
-              <DelegatorSentiment proposalId={selectedAction.hash} />
+              {/* Use proposalId (gov_action ID) for sentiment lookup, not hash (txHash:certIndex) */}
+              <DelegatorSentiment proposalId={selectedAction.proposalId || selectedAction.hash} />
             </div>
 
             {/* Right Column - Sidebar */}
             <div className="space-y-6">
               {/* Vote on Proposal Card */}
-              {parsedProposalHash && (
+              {parsedProposalHash && selectedAction.proposalId && (
                 <VoteOnProposal
                   txHash={parsedProposalHash.txHash}
                   certIndex={parsedProposalHash.certIndex}
                   proposalTitle={selectedAction.title}
                   status={selectedAction.status}
-                  proposalId={selectedAction.hash}
+                  proposalId={selectedAction.proposalId}
                 />
               )}
 

@@ -15,11 +15,10 @@ let isVoterPowerSyncRunning = false;
 
 /**
  * Starts the voter power sync cron job
- * Schedule is configurable via VOTER_POWER_SYNC_SCHEDULE env variable
- * Defaults to every 6 hours (at minute 30 to offset from proposal sync)
+ * Schedule is configurable via VOTER_POWER_SYNC_SCHEDULE env variable (required)
  */
 export const startVoterPowerSyncJob = () => {
-  const schedule = process.env.VOTER_POWER_SYNC_SCHEDULE || "30 */6 * * *";
+  const schedule = process.env.VOTER_POWER_SYNC_SCHEDULE;
   const enabled = process.env.ENABLE_CRON_JOBS !== "false";
 
   if (!enabled) {
@@ -29,12 +28,20 @@ export const startVoterPowerSyncJob = () => {
     return;
   }
 
+  // Check if schedule is defined
+  if (!schedule) {
+    console.error(
+      "[Cron] VOTER_POWER_SYNC_SCHEDULE env variable is not set. Voter power sync job will not run."
+    );
+    return;
+  }
+
   // Validate cron schedule
   if (!cron.validate(schedule)) {
     console.error(
-      `[Cron] Invalid cron schedule: ${schedule}. Using default: 30 */6 * * *`
+      `[Cron] Invalid cron schedule: ${schedule}. Voter power sync job will not run.`
     );
-    return startVoterPowerSyncJobWithSchedule("30 */6 * * *");
+    return;
   }
 
   startVoterPowerSyncJobWithSchedule(schedule);

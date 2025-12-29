@@ -86,15 +86,25 @@ export function VoteOnProposal({
 
   const isActive = status === "Active";
 
-  // Store initial vote count when polling starts
-  const initialVoteCountRef = useRef<number>(0);
+  // Store vote count at time of vote submission (AFTER tx confirmed)
+  // This captures the count AFTER the user's vote is submitted to chain
+  const voteCountAtSubmissionRef = useRef<number | null>(null);
+
+  // Store vote details for Discord notification (sent after sync)
+  const pendingDiscordNotification = useRef<{
+    drepId: string;
+    proposalId: string;
+    vote: string;
+    txHash: string;
+    rationaleUrl?: string;
+  } | null>(null);
 
   // Start polling after successful vote submission
   const startPolling = useCallback(() => {
-    // Store current vote count to detect changes
+    // Capture vote count at the moment polling starts (after vote tx submitted)
     const currentCount = selectedAction?.votes?.length || 0;
-    initialVoteCountRef.current = currentCount;
-    console.log(`[Vote Sync] Starting polling. Initial vote count: ${currentCount}`);
+    voteCountAtSubmissionRef.current = currentCount;
+    console.log(`[Vote Sync] Starting polling. Vote count at submission: ${currentCount}`);
 
     setSyncState({
       isPolling: true,
@@ -146,17 +156,17 @@ export function VoteOnProposal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, proposalId]);
 
-  // Check if vote is synced (vote count increased)
+  // Check if vote is synced (vote count increased from submission time)
   useEffect(() => {
     const currentVoteCount = selectedAction?.votes?.length || 0;
-    console.log(`[Vote Sync] Sync check effect - isPolling: ${syncState.isPolling}, pollCount: ${syncState.pollCount}, initialCount: ${initialVoteCountRef.current}, currentCount: ${currentVoteCount}`);
+    const countAtSubmission = voteCountAtSubmissionRef.current;
+    console.log(`[Vote Sync] Sync check effect - isPolling: ${syncState.isPolling}, pollCount: ${syncState.pollCount}, countAtSubmission: ${countAtSubmission}, currentCount: ${currentVoteCount}`);
 
-    if (syncState.isPolling && voteState.txHash && syncState.pollCount > 1) {
-      // Only check if we have a valid initial count (not 0)
-      // This prevents false positives when initialVoteCountRef wasn't set correctly
-      if (initialVoteCountRef.current > 0 && currentVoteCount > initialVoteCountRef.current) {
+    if (syncState.isPolling && voteState.txHash && syncState.pollCount >= 1) {
+      // Only check if we have captured the count at submission
+      if (countAtSubmission !== null && currentVoteCount > countAtSubmission) {
         // Vote synced - stop polling
-        console.log(`[Vote Sync] Vote synced! Initial: ${initialVoteCountRef.current}, Current: ${currentVoteCount}`);
+        console.log(`[Vote Sync] Vote synced! Count at submission: ${countAtSubmission}, Current: ${currentVoteCount}`);
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
@@ -169,6 +179,45 @@ export function VoteOnProposal({
       }
     }
   }, [syncState.isPolling, syncState.pollCount, selectedAction?.votes?.length, voteState.txHash]);
+
+  // Send Discord notification AFTER vote is synced
+  useEffect(() => {
+    if (syncState.isSynced && pendingDiscordNotification.current) {
+      const notification = pendingDiscordNotification.current;
+      console.log("[Vote] Vote synced - sending Discord notification...");
+
+      fetch("/api/sentiment/notify-drep-vote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("drep_auth_token") || ""}`,
+        },
+        body: JSON.stringify({
+          drepId: notification.drepId,
+          proposalId: notification.proposalId,
+          vote: notification.vote,
+          txHash: notification.txHash,
+          rationaleUrl: notification.rationaleUrl,
+        }),
+      })
+        .then(async (response) => {
+          console.log("[Vote] Discord notification response status:", response.status);
+          if (response.ok) {
+            console.log("[Vote] Discord notification sent successfully (after sync)");
+          } else {
+            const errorText = await response.text();
+            console.warn("[Vote] Discord notification failed:", errorText);
+          }
+        })
+        .catch((err) => {
+          console.error("[Vote] Discord notification error:", err);
+        })
+        .finally(() => {
+          // Clear pending notification
+          pendingDiscordNotification.current = null;
+        });
+    }
+  }, [syncState.isSynced]);
 
   // Cleanup interval on unmount only
   useEffect(() => {
@@ -273,7 +322,22 @@ export function VoteOnProposal({
         txHash: submittedTxHash,
       });
 
-      // Start polling to sync the vote
+      // Store Discord notification data to send AFTER sync completes
+      console.log("[Vote] Storing Discord notification for after sync...");
+      console.log("[Vote] drepId:", drepId);
+      console.log("[Vote] proposalId:", proposalId);
+      console.log("[Vote] vote:", selectedVote);
+      console.log("[Vote] txHash:", submittedTxHash);
+
+      pendingDiscordNotification.current = {
+        drepId: drepId,
+        proposalId: proposalId,
+        vote: selectedVote,
+        txHash: submittedTxHash,
+        rationaleUrl: anchorUrl.trim() || undefined,
+      };
+
+      // Start polling to sync the vote (Discord notification will be sent after sync)
       startPolling();
     } catch (err) {
       console.error("Vote submission error:", err);
@@ -284,7 +348,7 @@ export function VoteOnProposal({
         txHash: null,
       });
     }
-  }, [wallet, selectedVote, txHash, certIndex, anchorUrl, startPolling]);
+  }, [wallet, selectedVote, txHash, certIndex, anchorUrl, startPolling, proposalId]);
 
   const closeModal = () => {
     // Stop polling if still running
@@ -297,6 +361,7 @@ export function VoteOnProposal({
     setAnchorUrl("");
     setVoteState({ isSubmitting: false, isSuccess: false, error: null, txHash: null });
     setSyncState({ isPolling: false, isSynced: false, pollCount: 0, maxPolls: 15 });
+    voteCountAtSubmissionRef.current = null;
   };
 
   const getVoteButtonClass = (vote: VoteChoice) => {
