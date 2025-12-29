@@ -1,92 +1,92 @@
 name: Test GCP Authentication
 
 on:
-    workflow_dispatch: # Manual trigger only
-    push:
-        branches:
-            - gcp-deployment # Also test on pushes to deployment branch
-        paths:
-            - ".github/workflows/test-gcp-auth.yml"
+  workflow_dispatch: # Manual trigger only
+  push:
+    branches:
+      - gcp-deployment # Also test on pushes to deployment branch
+    paths:
+      - ".github/workflows/test-gcp-auth.yml"
 
 jobs:
-    test-auth:
-        name: Test Workload Identity Federation
-        runs-on: ubuntu-latest
+  test-auth:
+    name: Test Workload Identity Federation
+    runs-on: ubuntu-latest
 
-        permissions:
-            contents: read
-            id-token: write # CRITICAL: Required for OIDC token generation
+    permissions:
+      contents: read
+      id-token: write # CRITICAL: Required for OIDC token generation
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Authenticate to Google Cloud
-              id: auth
-              uses: google-github-actions/auth@v2
-              with:
-                  workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-                  service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-            - name: Set up Cloud SDK
-              uses: google-github-actions/setup-gcloud@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-            - name: Verify Authentication
-              run: |
-                  echo "=========================================="
-                  echo "Testing GCP Workload Identity Federation"
-                  echo "=========================================="
-                  echo ""
+      - name: Verify Authentication
+        run: |
+          echo "=========================================="
+          echo "Testing GCP Workload Identity Federation"
+          echo "=========================================="
+          echo ""
 
-                  echo "📋 Current Configuration:"
-                  gcloud config list
-                  echo ""
+          echo "📋 Current Configuration:"
+          gcloud config list
+          echo ""
 
-                  echo "🔐 Authenticated Account:"
-                  gcloud auth list
-                  echo ""
+          echo "🔐 Authenticated Account:"
+          gcloud auth list
+          echo ""
 
-                  echo "📦 Project Details:"
-                  gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-                  echo ""
+          echo "📦 Project Details:"
+          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
+          echo ""
 
-                  echo "🎯 Testing Access to Services:"
+          echo "🎯 Testing Access to Services:"
 
-                  echo "  - Cloud Run service list..."
-                  gcloud run services list --region=asia-south1 --format="table(name,region)" || echo "    No services yet (this is OK)"
+          echo "  - Cloud Run service list..."
+          gcloud run services list --region=asia-south1 --format="table(name,region)" || echo "    No services yet (this is OK)"
 
-                  echo "  - Artifact Registry repositories..."
-                  gcloud artifacts repositories list --location=asia-south1 --format="table(name,format)" || echo "    No repositories yet (this is OK)"
+          echo "  - Artifact Registry repositories..."
+          gcloud artifacts repositories list --location=asia-south1 --format="table(name,format)" || echo "    No repositories yet (this is OK)"
 
-                  echo "  - Compute Engine instances..."
-                  gcloud compute instances list --zones=asia-south1-a --format="table(name,zone,status)" || echo "    No instances yet (this is OK)"
+          echo "  - Compute Engine instances..."
+          gcloud compute instances list --zones=asia-south1-a --format="table(name,zone,status)" || echo "    No instances yet (this is OK)"
 
-                  echo "  - Cloud SQL instances..."
-                  gcloud sql instances list --format="table(name,region,databaseVersion)" || echo "    No instances yet (this is OK)"
+          echo "  - Cloud SQL instances..."
+          gcloud sql instances list --format="table(name,region,databaseVersion)" || echo "    No instances yet (this is OK)"
 
-                  echo ""
-                  echo "=========================================="
-                  echo "✅ Authentication Test PASSED!"
-                  echo "=========================================="
-                  echo ""
-                  echo "Your Workload Identity Federation is configured correctly."
-                  echo "You can now proceed with deployment workflows."
+          echo ""
+          echo "=========================================="
+          echo "✅ Authentication Test PASSED!"
+          echo "=========================================="
+          echo ""
+          echo "Your Workload Identity Federation is configured correctly."
+          echo "You can now proceed with deployment workflows."
 
-            - name: Test Failed
-              if: failure()
-              run: |
-                  echo "=========================================="
-                  echo "❌ Authentication Test FAILED!"
-                  echo "=========================================="
-                  echo ""
-                  echo "Common issues to check:"
-                  echo "1. Verify GCP_WORKLOAD_IDENTITY_PROVIDER secret is correct"
-                  echo "2. Verify GCP_SERVICE_ACCOUNT secret is correct"
-                  echo "3. Verify GCP_PROJECT_ID secret is correct"
-                  echo "4. Check that service account has required IAM roles"
-                  echo "5. Verify Workload Identity Pool and Provider are created"
-                  echo "6. Check that repository name matches IAM binding"
-                  echo ""
-                  echo "Run these commands locally to verify:"
-                  echo "  gcloud iam workload-identity-pools list --location=global"
-                  echo "  gcloud iam service-accounts get-iam-policy drep-delegator-ga-sa@sidan-445102.iam.gserviceaccount.com"
+      - name: Test Failed
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "❌ Authentication Test FAILED!"
+          echo "=========================================="
+          echo ""
+          echo "Common issues to check:"
+          echo "1. Verify GCP_WORKLOAD_IDENTITY_PROVIDER secret is correct"
+          echo "2. Verify GCP_SERVICE_ACCOUNT secret is correct"
+          echo "3. Verify GCP_PROJECT_ID secret is correct"
+          echo "4. Check that service account has required IAM roles"
+          echo "5. Verify Workload Identity Pool and Provider are created"
+          echo "6. Check that repository name matches IAM binding"
+          echo ""
+          echo "Run these commands locally to verify:"
+          echo "  gcloud iam workload-identity-pools list --location=global"
+          echo "  gcloud iam service-accounts get-iam-policy drep-delegator-ga-sa@sidan-445102.iam.gserviceaccount.com"
