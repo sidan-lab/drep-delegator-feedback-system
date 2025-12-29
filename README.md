@@ -24,8 +24,9 @@ This repository is created as part of a Project Catalyst initiative by **SIDAN L
 > The structure below is tentative and will be updated as the project evolves.
 
 - `discord-bot/` – discord-bot to interact with the dedicated discord channel to gather delegator feedback.
-- `frontend/` – Web UI for delegators and DReps to submit and review feedback.
+- `frontend/` – Web UI for DReps to read and review delegator feedback, review governance actions and submit vote.
 - `api/` – APIs, data model, and integration with Cardano governance data, acting as the connector between web frontend and discord-bot.
+- `delegator-verification-frontend/` - Web UI for delegators to verify their delegation and link with its discord account.
 
 ---
 
