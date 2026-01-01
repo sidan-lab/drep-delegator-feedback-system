@@ -69,8 +69,7 @@ function transformNCLData(data: NCLYearData): NCLDisplayData {
     currentValueAda: currentAda,
     targetValueAda: targetAda,
     percentUsed,
-    epoch: data.epoch,
-    updatedAt: data.updatedAt,
+    isExtended: data.year === 2025, // 2025 NCL is extended to Feb 2026
   };
 }
 
