@@ -99,10 +99,21 @@ enum ProposalStatus {
   CLOSED    // Expired INFO action (only applicable to INFO governance action type - they don't get ratified/enacted)
 }
 
-// Ingestion Types
+// Sync Status - Tracks sync job execution and provides distributed locking
 
-model LastIngestedTime {
-  id String @id @default(uuid())
+model SyncStatus {
+  jobName        String    @id              // "proposal-sync", "voter-power-sync"
+  displayName    String?                    // "Proposal Sync", "Voter Power Sync"
+  isRunning      Boolean   @default(false)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  lastResult     String?                    // "success", "failed", "skipped"
+  errorMessage   String?                    // Store error message if failed
+  itemsProcessed Int?                       // How many items were synced
+  lockedBy       String?                    // Container/instance ID
+  expiresAt      DateTime?                  // Auto-unlock if crashed
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // Viewer Types

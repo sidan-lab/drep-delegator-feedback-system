@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import { prisma } from "../services";
 import { verifyJWT } from "../libs/jwt";
 
-// Extend Express Request to include drepId and user
+// Extend Express Request to include drepId, user, and isSystemCall
 declare global {
   namespace Express {
     interface Request {
       drepId?: string;
+      isSystemCall?: boolean;
       drepRegistration?: {
         id: string;
         drepId: string;
@@ -88,6 +89,13 @@ export async function apiKeyAuth(
       error: "Unauthorized",
       message: "API key is required. Please provide X-API-Key header.",
     });
+  }
+
+  // Allow SERVER_API_KEY for system/admin calls (e.g., Cloud Scheduler)
+  const serverApiKey = process.env.SERVER_API_KEY;
+  if (serverApiKey && apiKey === serverApiKey) {
+    req.isSystemCall = true;
+    return next();
   }
 
   try {
