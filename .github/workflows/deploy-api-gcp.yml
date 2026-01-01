@@ -68,7 +68,6 @@ jobs:
             --vpc-connector=drep-delegator-feedback \
             --vpc-egress=private-ranges-only \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:drep-delegator-feedback \
-            --set-env-vars="PORT=3001" \
             --set-env-vars="DISABLE_CRON_IN_API=true" \
             --set-env-vars="KOIOS_BASE_URL=https://api.koios.rest/api/v1" \
             --set-env-vars="RATE_LIMIT_WINDOW_MS=60000" \
