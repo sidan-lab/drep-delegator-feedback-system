@@ -59,7 +59,6 @@ jobs:
             --region=${{ env.REGION }} \
             --platform=managed \
             --allow-unauthenticated \
-            --port=3001 \
             --memory=512Mi \
             --cpu=1 \
             --min-instances=0 \
