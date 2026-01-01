@@ -2,16 +2,27 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { VotingRecords } from "@/components/VotingRecords";
-import { VoteOnProposal, DelegatorSentiment } from "@/components/governance";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { ArrowLeft } from "lucide-react";
 import type { GovernanceActionDetail } from "@/types/governance";
+
+// Dynamic imports to avoid MeshSDK SSR bundling issues
+const VoteOnProposal = dynamic(
+  () => import("@/components/governance/VoteOnProposal").then((mod) => mod.VoteOnProposal),
+  { ssr: false }
+);
+
+const DelegatorSentiment = dynamic(
+  () => import("@/components/governance/DelegatorSentiment").then((mod) => mod.DelegatorSentiment),
+  { ssr: false }
+);
 
 /**
  * Parse proposal hash (txHash:certIndex format) into separate components
