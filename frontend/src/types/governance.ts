@@ -132,19 +132,26 @@ export type GovernanceActionType =
 export type VoteType = "All" | "Yes" | "No" | "Abstain";
 
 /**
+ * NCL data from API (single year)
+ */
+export interface NCLApiData {
+  year: number;
+  currentValue: string; // In lovelace
+  targetValue: string; // In lovelace
+}
+
+/**
  * Overview summary data from API
  * Matches the API response from /overview
  */
 export interface OverviewSummary {
-  year: number;
-  currentValue: number; // Active proposals
-  targetValue: number; // Total proposals
   totalProposals: number;
   activeProposals: number;
   ratifiedProposals: number;
   enactedProposals: number;
   expiredProposals: number;
   closedProposals: number;
+  nclData: NCLApiData[];
 }
 
 /**
@@ -167,8 +174,7 @@ export interface NCLDisplayData {
   currentValueAda: number;
   targetValueAda: number;
   percentUsed: number;
-  epoch: number;
-  updatedAt: string;
+  isExtended?: boolean; // True for 2025 (extended period)
 }
 
 /**
