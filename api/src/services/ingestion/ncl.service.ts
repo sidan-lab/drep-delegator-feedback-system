@@ -30,12 +30,71 @@ async function getCurrentEpoch(): Promise<number> {
 }
 
 /**
+ * Cardano mainnet epoch reference point
+ * Epoch 208 started on July 29, 2020 (Shelley era start)
+ * Each epoch is exactly 5 days (432000 seconds)
+ */
+const EPOCH_208_START = new Date("2020-07-29T21:44:51Z").getTime();
+const EPOCH_DURATION_MS = 5 * 24 * 60 * 60 * 1000; // 5 days in milliseconds
+
+/**
+ * Converts an epoch number to its start date
+ */
+function epochToDate(epoch: number): Date {
+  const epochDiff = epoch - 208;
+  const timestampMs = EPOCH_208_START + epochDiff * EPOCH_DURATION_MS;
+  return new Date(timestampMs);
+}
+
+/**
+ * Special epoch boundaries for NCL years
+ *
+ * 2025 NCL Extension: The "2025 Net Change Limit Extension" governance action
+ * approved extending the 2025 NCL period by 8 additional epochs,
+ * ending at the conclusion of Epoch 612 (February 8, 2026).
+ *
+ * This means:
+ * - 2025 NCL: ends at epoch 612 (inclusive)
+ * - 2026 NCL: starts at epoch 613
+ */
+const NCL_YEAR_BOUNDARIES: Record<number, { startEpoch: number; endEpoch: number }> = {
+  2025: { startEpoch: 539, endEpoch: 613 }, // Extended to epoch 612 (inclusive), so endEpoch is 613
+  2026: { startEpoch: 613, endEpoch: 686 }, // Starts after 2025 extension ends
+};
+
+/**
+ * Gets the epoch range for a given year
+ * Returns the first epoch that starts in the year and the last epoch that ends in the year (exclusive)
+ *
+ * Special cases:
+ * - 2025: Extended by 8 epochs, ends at epoch 612
+ * - 2026: Starts at epoch 613
+ */
+function getEpochRangeForYear(year: number): { startEpoch: number; endEpoch: number } {
+  // Check for special NCL year boundaries first
+  if (NCL_YEAR_BOUNDARIES[year]) {
+    return NCL_YEAR_BOUNDARIES[year];
+  }
+
+  // Default calculation for other years
+  const yearStart = new Date(`${year}-01-01T00:00:00Z`).getTime();
+  const yearEnd = new Date(`${year + 1}-01-01T00:00:00Z`).getTime();
+
+  // Calculate approximate start epoch for the year
+  const startEpoch = Math.ceil((yearStart - EPOCH_208_START) / EPOCH_DURATION_MS) + 208;
+  // Calculate approximate end epoch (first epoch of next year)
+  const endEpoch = Math.floor((yearEnd - EPOCH_208_START) / EPOCH_DURATION_MS) + 208;
+
+  return { startEpoch, endEpoch };
+}
+
+/**
  * Calculates total treasury withdrawals from ratified/enacted proposals for a given year
  *
  * @param year - Calendar year to calculate withdrawals for
  * @returns Total withdrawal amount in lovelace
  */
-async function calculateTreasuryWithdrawalsForYear(_year: number): Promise<{
+async function calculateTreasuryWithdrawalsForYear(year: number): Promise<{
   totalLovelace: bigint;
   proposalCount: number;
 }> {
@@ -46,7 +105,11 @@ async function calculateTreasuryWithdrawalsForYear(_year: number): Promise<{
     return { totalLovelace: BigInt(0), proposalCount: 0 };
   }
 
-  // Filter for treasury withdrawals that are ratified or enacted
+  // Get epoch range for the given year
+  const { startEpoch, endEpoch } = getEpochRangeForYear(year);
+  console.log(`[NCL] Year ${year} epoch range: ${startEpoch} - ${endEpoch}`);
+
+  // Filter for treasury withdrawals that are ratified or enacted within the year
   const treasuryProposals = allProposals.filter((p) => {
     // Must be TreasuryWithdrawals type
     if (p.proposal_type !== "TreasuryWithdrawals") {
@@ -54,24 +117,33 @@ async function calculateTreasuryWithdrawalsForYear(_year: number): Promise<{
     }
 
     // Must be ratified or enacted
-    const isRatified = p.ratified_epoch !== null && p.ratified_epoch !== undefined;
-    const isEnacted = p.enacted_epoch !== null && p.enacted_epoch !== undefined;
+    const ratifiedEpoch = p.ratified_epoch;
+    const enactedEpoch = p.enacted_epoch;
+
+    const isRatified = ratifiedEpoch !== null && ratifiedEpoch !== undefined;
+    const isEnacted = enactedEpoch !== null && enactedEpoch !== undefined;
 
     if (!isRatified && !isEnacted) {
       return false;
     }
 
-    // Check if the ratified/enacted epoch falls within the given year
-    // We need to determine which epoch corresponds to the year boundary
-    // For simplicity, we'll use the enacted_epoch or ratified_epoch to derive the year
-    // Cardano epochs are ~5 days, so we need to calculate based on block_time or use a heuristic
+    // Check if the enacted epoch (or ratified if not enacted) falls within the year
+    // Use enacted_epoch if available, otherwise use ratified_epoch
+    const relevantEpoch = isEnacted ? enactedEpoch : ratifiedEpoch;
 
-    // Alternative approach: Check if the proposal was ratified/enacted in the given year
-    // by looking at the block_time or by querying the epoch-to-date mapping
-    // For now, we'll include all ratified/enacted treasury proposals
-    // and let the admin manage the year boundary via the limit field
+    if (relevantEpoch === null || relevantEpoch === undefined) {
+      return false;
+    }
 
-    return true;
+    // Check if the epoch falls within the year's epoch range
+    const withinYear = relevantEpoch >= startEpoch && relevantEpoch < endEpoch;
+
+    if (withinYear) {
+      const epochDate = epochToDate(relevantEpoch);
+      console.log(`[NCL] Including proposal ${p.proposal_id}: enacted/ratified epoch ${relevantEpoch} (${epochDate.toISOString()})`);
+    }
+
+    return withinYear;
   });
 
   // Calculate total withdrawal amount in lovelace
@@ -180,17 +252,40 @@ export async function updateNCL(): Promise<NCLUpdateResult> {
  * @param year - Calendar year to calculate withdrawals for
  * @returns Total withdrawal amount in lovelace
  */
-export async function calculateNCLFromDatabase(_year: number): Promise<{
+export async function calculateNCLFromDatabase(year: number): Promise<{
   totalLovelace: bigint;
   proposalCount: number;
 }> {
+  // Get epoch range for the given year
+  const { startEpoch, endEpoch } = getEpochRangeForYear(year);
+
   // Query ratified/enacted treasury withdrawal proposals from database
+  // Filter by enacted or ratified epoch within the year
   const treasuryProposals = await prisma.proposal.findMany({
     where: {
       governanceActionType: GovernanceType.TREASURY_WITHDRAWALS,
       status: {
         in: [ProposalStatus.RATIFIED, ProposalStatus.ENACTED],
       },
+      OR: [
+        {
+          enactedEpoch: {
+            gte: startEpoch,
+            lt: endEpoch,
+          },
+        },
+        {
+          AND: [
+            { enactedEpoch: null },
+            {
+              ratifiedEpoch: {
+                gte: startEpoch,
+                lt: endEpoch,
+              },
+            },
+          ],
+        },
+      ],
     },
     select: {
       id: true,

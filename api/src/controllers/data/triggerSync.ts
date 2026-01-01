@@ -102,11 +102,19 @@ export const postTriggerSync = async (_req: Request, res: Response) => {
 
     console.log("[Manual Sync] ✓ Completed successfully");
 
+    // Convert BigInt values to strings for JSON serialization
+    const serializedNcl = nclResult
+      ? {
+          ...nclResult,
+          currentValue: nclResult.currentValue.toString(),
+        }
+      : null;
+
     res.json({
       success: true,
       message: "Proposal sync completed",
       results,
-      ncl: nclResult,
+      ncl: serializedNcl,
     });
   } catch (error) {
     console.error("[Manual Sync] Error:", error);
