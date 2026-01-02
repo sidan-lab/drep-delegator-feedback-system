@@ -32,10 +32,15 @@ Required environment variables:
 |----------|-------------|
 | `NEXT_PUBLIC_DREP_ID` | Your DRep ID in CIP-129 format |
 | `NEXT_PUBLIC_DREP_NAME` | Display name for your DRep |
-| `NEXT_PUBLIC_API_BASE_URL` | URL of the central API |
-| `API_KEY` | Your DRep's API key (from registration) |
+| `BACKEND_API_KEY` | Your DRep's API key (from registration) |
 | `BLOCKFROST_KEY` | Blockfrost API key for checking delegation |
 | `NEXT_PUBLIC_DISCORD_CHANNEL_LINK` | Link to your Discord governance channel |
+
+Optional environment variables (for local development):
+
+| Variable | Description |
+|----------|-------------|
+| `BACKEND_API_URL` | Backend API URL (defaults to production if not set) |
 
 ### 3. Run Development Server
 
