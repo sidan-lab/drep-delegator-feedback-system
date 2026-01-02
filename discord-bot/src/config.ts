@@ -16,7 +16,7 @@ export const config = {
 
   // API Configuration
   api: {
-    baseUrl: process.env.API_BASE_URL,
+    baseUrl: process.env.API_BASE_URL || "https://drep-delegator-api-52544399492.asia-south1.run.app",
     apiKey: process.env.API_KEY,
   },
 
@@ -43,7 +43,7 @@ export const config = {
 
   // Shared Frontend Configuration (for proposal details links)
   frontend: {
-    baseUrl: process.env.FRONTEND_BASE_URL,
+    baseUrl: process.env.FRONTEND_BASE_URL || "https://delegator-gov.sidan.io",
   },
 };
 
@@ -60,10 +60,6 @@ export function validateConfig(): void {
   }
 
   // Required API configuration
-  if (!config.api.baseUrl) {
-    errors.push("API_BASE_URL is required");
-  }
-
   if (!config.api.apiKey) {
     errors.push("API_KEY is required");
   }
