@@ -81,6 +81,16 @@ jobs:
                 -e DREP_ID='${{ secrets.DREP_ID }}' \
                 -e VERIFICATION_FRONTEND_URL='${{ secrets.VERIFICATION_FRONTEND_URL }}' \
                 -e CRON_PROPOSAL_SYNC='*/5 * * * *' \
+                -e FORUM_CHANNEL_ID='${{ secrets.FORUM_CHANNEL_ID }}' \
+                -e DELEGATE_CHANNEL_ID='${{ secrets.DELEGATE_CHANNEL_ID }}' \
+                -e ROLE_ID_DELEGATED='${{ secrets.ROLE_ID_DELEGATED }}' \
+                -e TAG_ID_PARAMETER_CHANGE='${{ secrets.TAG_ID_PARAMETER_CHANGE }}' \
+                -e TAG_ID_HARD_FORK_INITIATION='${{ secrets.TAG_ID_HARD_FORK_INITIATION }}' \
+                -e TAG_ID_TREASURY_WITHDRAWALS='${{ secrets.TAG_ID_TREASURY_WITHDRAWALS }}' \
+                -e TAG_ID_NO_CONFIDENCE='${{ secrets.TAG_ID_NO_CONFIDENCE }}' \
+                -e TAG_ID_NEW_COMMITTEE='${{ secrets.TAG_ID_NEW_COMMITTEE }}' \
+                -e TAG_ID_NEW_CONSTITUTION='${{ secrets.TAG_ID_NEW_CONSTITUTION }}' \
+                -e TAG_ID_INFO_ACTION='${{ secrets.TAG_ID_INFO_ACTION }}' \
                 ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
               # Cleanup old images
