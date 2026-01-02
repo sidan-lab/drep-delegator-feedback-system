@@ -90,7 +90,7 @@ jobs:
           gcloud scheduler jobs delete drep-proposal-sync --location=${{ env.REGION }} --quiet || true
           gcloud scheduler jobs create http drep-proposal-sync \
             --location=${{ env.REGION }} \
-            --schedule="*/5 * * * *" \
+            --schedule="*/15 * * * *" \
             --uri="${{ steps.url.outputs.url }}/data/trigger-sync" \
             --http-method=POST \
             --headers="X-API-Key=${{ secrets.SERVER_API_KEY }}" \
@@ -123,5 +123,5 @@ jobs:
           echo "### Cloud Scheduler Jobs" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Schedule | Endpoint |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|----------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| drep-proposal-sync | \`*/5 * * * *\` | POST /data/trigger-sync |" >> $GITHUB_STEP_SUMMARY
+          echo "| drep-proposal-sync | \`*/15 * * * *\` | POST /data/trigger-sync |" >> $GITHUB_STEP_SUMMARY
           echo "| drep-voter-power-sync | \`0 0 * * *\` | POST /data/trigger-voter-sync |" >> $GITHUB_STEP_SUMMARY
