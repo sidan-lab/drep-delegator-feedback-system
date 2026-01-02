@@ -44,17 +44,8 @@ export default async function handler(
     });
   }
 
-  const backendApiUrl = process.env.BACKEND_API_URL;
+  const backendApiUrl = process.env.BACKEND_API_URL || "https://drep-delegator-api-52544399492.asia-south1.run.app";
   const backendApiKey = process.env.BACKEND_API_KEY;
-
-  if (!backendApiUrl) {
-    console.error("BACKEND_API_URL is not configured");
-    return res.status(500).json({
-      success: false,
-      error: "Server configuration error",
-      message: "Backend API URL is not configured",
-    });
-  }
 
   const { drepId, discordUserId, discordUsername, stakeAddress }: VerifyDelegatorBody = req.body;
 
