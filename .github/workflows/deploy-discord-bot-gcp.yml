@@ -80,7 +80,7 @@ jobs:
                 -e API_KEY='${{ secrets.API_KEY }}' \
                 -e DREP_ID='${{ secrets.DREP_ID }}' \
                 -e VERIFICATION_FRONTEND_URL='${{ secrets.VERIFICATION_FRONTEND_URL }}' \
-                -e CRON_PROPOSAL_SYNC='0 */6 * * *' \
+                -e CRON_PROPOSAL_SYNC='*/5 * * * *' \
                 ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
               # Cleanup old images
