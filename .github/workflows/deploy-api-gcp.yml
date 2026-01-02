@@ -124,4 +124,4 @@ jobs:
           echo "| Job | Schedule | Endpoint |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|----------|----------|" >> $GITHUB_STEP_SUMMARY
           echo "| drep-proposal-sync | \`*/5 * * * *\` | POST /data/trigger-sync |" >> $GITHUB_STEP_SUMMARY
-          echo "| drep-voter-power-sync | \`0 0 * * *\` | POST /data/trigger-voter-sync |" >> $GITHUB_STEP_SUMMARY
+          echo "| drep-voter-power-sync | \`*/5 * * * *\` | POST /data/trigger-voter-sync |" >> $GITHUB_STEP_SUMMARY
