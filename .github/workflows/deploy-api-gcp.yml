@@ -63,7 +63,7 @@ jobs:
             --cpu=1 \
             --min-instances=0 \
             --max-instances=10 \
-            --timeout=300 \
+            --timeout=900 \
             --vpc-connector=drep-delegator-feedback \
             --vpc-egress=private-ranges-only \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:drep-delegator-feedback \
@@ -94,7 +94,7 @@ jobs:
             --uri="${{ steps.url.outputs.url }}/data/trigger-sync" \
             --http-method=POST \
             --headers="X-API-Key=${{ secrets.SERVER_API_KEY }}" \
-            --attempt-deadline=540s \
+            --attempt-deadline=900s \
             --time-zone="UTC" \
             --description="Sync governance proposals from Koios API every 5 minutes"
 
@@ -103,11 +103,11 @@ jobs:
           gcloud scheduler jobs delete drep-voter-power-sync --location=${{ env.REGION }} --quiet || true
           gcloud scheduler jobs create http drep-voter-power-sync \
             --location=${{ env.REGION }} \
-            --schedule="0 0 * * *" \
+            --schedule="*/5 * * * *" \
             --uri="${{ steps.url.outputs.url }}/data/trigger-voter-sync" \
             --http-method=POST \
             --headers="X-API-Key=${{ secrets.SERVER_API_KEY }}" \
-            --attempt-deadline=540s \
+            --attempt-deadline=900s \
             --time-zone="UTC" \
             --description="Sync DRep and SPO voting power from Koios API every 24 hours"
 

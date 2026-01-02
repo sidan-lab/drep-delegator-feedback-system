@@ -27,6 +27,7 @@
     "helmet": "^8.1.0",
     "json-schema-to-ts": "^3.1.1",
     "node-cron": "^4.2.1",
+    "p-map": "^5.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },

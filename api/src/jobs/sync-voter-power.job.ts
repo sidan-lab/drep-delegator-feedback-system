@@ -11,7 +11,7 @@ import { prisma } from "../services";
 
 const JOB_NAME = "voter-power-sync";
 const DISPLAY_NAME = "Voter Power Sync";
-const LOCK_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours (voter sync takes longer)
+const LOCK_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes (matches Cloud Run max timeout)
 
 /**
  * Starts the voter power sync cron job

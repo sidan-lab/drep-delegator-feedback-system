@@ -5,7 +5,7 @@ import { prisma } from "../../services";
 
 const JOB_NAME = "proposal-sync";
 const DISPLAY_NAME = "Proposal Sync";
-const LOCK_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+const LOCK_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes (matches Cloud Run max timeout)
 
 /**
  * POST /data/trigger-sync
