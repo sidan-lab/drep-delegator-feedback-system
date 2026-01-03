@@ -8,7 +8,7 @@ export declare const config: {
         delegatedRoleId: string | undefined;
     };
     api: {
-        baseUrl: string | undefined;
+        baseUrl: string;
         apiKey: string | undefined;
     };
     drep: {
@@ -25,7 +25,7 @@ export declare const config: {
         frontendUrl: string | undefined;
     };
     frontend: {
-        baseUrl: string | undefined;
+        baseUrl: string;
     };
 };
 export declare function validateConfig(): void;

@@ -4,14 +4,14 @@ import type { AppProps } from "next/app";
 import { Provider } from "react-redux";
 import { store } from "@/store";
 import Head from "next/head";
-import { MeshProvider } from "@meshsdk/react";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { MeshProviderWrapper } from "@/components/providers/MeshProviderWrapper";
+import { AuthProviderWrapper } from "@/components/providers/AuthProviderWrapper";
 import { Header } from "@/components/layout";
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <MeshProvider>
-      <AuthProvider>
+    <MeshProviderWrapper>
+      <AuthProviderWrapper>
         <Provider store={store}>
           <Head>
             <link rel="icon" href="/favicon.ico?v=2" />
@@ -19,7 +19,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <Header />
           <Component {...pageProps} />
         </Provider>
-      </AuthProvider>
-    </MeshProvider>
+      </AuthProviderWrapper>
+    </MeshProviderWrapper>
   );
 }

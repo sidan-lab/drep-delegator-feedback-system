@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useAppSelector } from "@/store/hooks";
+import type { NCLDisplayData } from "@/types/governance";
 
 /**
  * Format ADA value with commas for readability
@@ -9,10 +10,44 @@ function formatAda(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
+/**
+ * Single NCL Year Display Component
+ */
+function NCLYearCard({ ncl, isFirst }: { ncl: NCLDisplayData; isFirst: boolean }) {
+  return (
+    <div className={isFirst ? "" : "border-t border-amber-500/20 pt-3 mt-3"}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm text-muted-foreground uppercase tracking-wide">
+          NCL {ncl.year}
+        </span>
+        {ncl.isExtended && (
+          <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
+            Extended
+          </span>
+        )}
+      </div>
+      <div className="mb-2">
+        <span className="text-xl font-bold text-foreground">
+          {formatAda(ncl.currentValueAda)} / {formatAda(ncl.targetValueAda)} ADA
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <Progress
+          value={Math.min(ncl.percentUsed, 100)}
+          className="h-2 flex-1"
+        />
+        <span className="text-sm text-amber-500 font-semibold">
+          {ncl.percentUsed.toFixed(1)}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function GovernanceStats() {
   const actions = useAppSelector((state) => state.governance.actions);
   const overview = useAppSelector((state) => state.governance.overview);
-  const nclData = useAppSelector((state) => state.governance.nclData);
+  const nclDataList = useAppSelector((state) => state.governance.nclDataList);
 
   // Calculate stats from actions if overview not available
   const stats = overview
@@ -36,6 +71,15 @@ export function GovernanceStats() {
   // Calculate progress percentage (active / total)
   const activePercent =
     stats.total > 0 ? (stats.active / stats.total) * 100 : 0;
+
+  // Sort NCL data: 2025 (extended) first, then 2026
+  const sortedNclData = [...nclDataList].sort((a, b) => {
+    // Extended year first
+    if (a.isExtended && !b.isExtended) return -1;
+    if (!a.isExtended && b.isExtended) return 1;
+    // Then by year descending
+    return b.year - a.year;
+  });
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -92,32 +136,21 @@ export function GovernanceStats() {
         </div>
       </Card>
 
-      {/* Right card: NCL Data */}
+      {/* Right card: NCL Data (Stacked Years) */}
       <Card className="p-6 bg-gradient-to-br from-amber-500/20 to-amber-500/5 border-amber-500/30">
-        <div className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
-          NCL {nclData?.year || new Date().getFullYear()}
-        </div>
-        {nclData ? (
+        {sortedNclData.length > 0 ? (
+          sortedNclData.map((ncl, index) => (
+            <NCLYearCard key={ncl.year} ncl={ncl} isFirst={index === 0} />
+          ))
+        ) : (
           <>
-            <div className="mb-3">
-              <span className="text-2xl font-bold text-foreground">
-                {formatAda(nclData.currentValueAda)} / {formatAda(nclData.targetValueAda)} ADA
-              </span>
+            <div className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
+              NCL {new Date().getFullYear()}
             </div>
-            <div className="flex items-center gap-3">
-              <Progress
-                value={Math.min(nclData.percentUsed, 100)}
-                className="h-2 flex-1"
-              />
-              <span className="text-sm text-amber-500 font-semibold">
-                {nclData.percentUsed.toFixed(1)}%
-              </span>
+            <div className="text-muted-foreground text-sm">
+              NCL data not available
             </div>
           </>
-        ) : (
-          <div className="text-muted-foreground text-sm">
-            NCL data not available
-          </div>
         )}
       </Card>
     </div>

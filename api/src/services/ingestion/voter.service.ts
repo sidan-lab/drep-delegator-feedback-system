@@ -13,6 +13,7 @@ import type {
   KoiosCommitteeInfo,
   KoiosTip,
 } from "../../types/koios.types";
+import { processInParallel, getVoterSyncConcurrency } from "./parallel";
 
 /**
  * Some Koios metadata fields (e.g. from /drep_updates) can be returned either
@@ -552,15 +553,12 @@ export async function syncAllVoterVotingPower(
 /**
  * Syncs voting power for all DReps in the database
  * Only fetches voting power for DReps that exist in the database
+ * Uses parallel processing for improved performance
  */
 async function syncDrepVotingPower(
   prisma: Prisma.TransactionClient,
   epoch: number
 ): Promise<{ total: number; updated: number; failed: number; errors: string[] }> {
-  const errors: string[] = [];
-  let updated = 0;
-  let failed = 0;
-
   // Get all DReps from database
   const dreps = await prisma.drep.findMany({
     select: { drepId: true },
@@ -571,14 +569,16 @@ async function syncDrepVotingPower(
     return { total: 0, updated: 0, failed: 0, errors: [] };
   }
 
+  const concurrency = getVoterSyncConcurrency();
   console.log(
-    `[Voter Service] Syncing voting power for ${dreps.length} DReps...`
+    `[Voter Service] Syncing voting power for ${dreps.length} DReps (concurrency: ${concurrency})...`
   );
 
-  // Fetch voting power for each DRep individually
-  // This is more efficient when we have fewer DReps in DB than on-chain
-  for (const drep of dreps) {
-    try {
+  // Process DReps in parallel with controlled concurrency
+  const result = await processInParallel(
+    dreps,
+    (drep) => drep.drepId,
+    async (drep) => {
       const votingPowerHistory = await koiosGet<KoiosDrepVotingPower[]>(
         "/drep_voting_power_history",
         {
@@ -595,14 +595,17 @@ async function syncDrepVotingPower(
           where: { drepId: drep.drepId },
           data: { votingPower: newVotingPower },
         });
-        updated++;
+        return drep.drepId; // Return ID to count as updated
       }
       // If no voting power found, the DRep might be inactive - skip update
-    } catch (error: any) {
-      failed++;
-      errors.push(`DRep ${drep.drepId}: ${error.message}`);
-    }
-  }
+      return null;
+    },
+    concurrency
+  );
+
+  const updated = result.successful.length;
+  const failed = result.failed.length;
+  const errors = result.failed.map((f) => `DRep ${f.id}: ${f.error}`);
 
   console.log(
     `[Voter Service] DRep sync complete: ${updated} updated, ${failed} failed`
@@ -614,15 +617,12 @@ async function syncDrepVotingPower(
 /**
  * Syncs voting power for all SPOs in the database
  * Only fetches voting power for SPOs that exist in the database
+ * Uses parallel processing for improved performance
  */
 async function syncSpoVotingPower(
   prisma: Prisma.TransactionClient,
   epoch: number
 ): Promise<{ total: number; updated: number; failed: number; errors: string[] }> {
-  const errors: string[] = [];
-  let updated = 0;
-  let failed = 0;
-
   // Get all SPOs from database
   const spos = await prisma.sPO.findMany({
     select: { poolId: true },
@@ -633,14 +633,16 @@ async function syncSpoVotingPower(
     return { total: 0, updated: 0, failed: 0, errors: [] };
   }
 
+  const concurrency = getVoterSyncConcurrency();
   console.log(
-    `[Voter Service] Syncing voting power for ${spos.length} SPOs...`
+    `[Voter Service] Syncing voting power for ${spos.length} SPOs (concurrency: ${concurrency})...`
   );
 
-  // Fetch voting power for each SPO individually
-  // This is more efficient when we have fewer SPOs in DB than on-chain
-  for (const spo of spos) {
-    try {
+  // Process SPOs in parallel with controlled concurrency
+  const result = await processInParallel(
+    spos,
+    (spo) => spo.poolId,
+    async (spo) => {
       const votingPowerHistory = await koiosGet<KoiosSpoVotingPower[]>(
         "/pool_voting_power_history",
         {
@@ -657,14 +659,17 @@ async function syncSpoVotingPower(
           where: { poolId: spo.poolId },
           data: { votingPower: newVotingPower },
         });
-        updated++;
+        return spo.poolId; // Return ID to count as updated
       }
       // If no voting power found, the SPO might be inactive - skip update
-    } catch (error: any) {
-      failed++;
-      errors.push(`SPO ${spo.poolId}: ${error.message}`);
-    }
-  }
+      return null;
+    },
+    concurrency
+  );
+
+  const updated = result.successful.length;
+  const failed = result.failed.length;
+  const errors = result.failed.map((f) => `SPO ${f.id}: ${f.error}`);
 
   console.log(
     `[Voter Service] SPO sync complete: ${updated} updated, ${failed} failed`

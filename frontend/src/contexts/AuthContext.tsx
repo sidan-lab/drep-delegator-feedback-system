@@ -226,10 +226,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// Default context value for when AuthProvider is not yet loaded (during dynamic import)
+const defaultAuthContext: AuthContextType = {
+  isAuthenticated: false,
+  isLoading: true,
+  jwtToken: null,
+  userId: null,
+  walletAddress: null,
+  drepRegistration: null,
+  signIn: async () => {},
+  signOut: () => {},
+  refreshAuth: async () => {},
+  updateDrepRegistration: () => {},
+};
+
 export function useAuth() {
   const context = useContext(AuthContext);
+  // Return default context when provider is not ready (during dynamic import loading)
+  // This prevents "useAuth must be used within AuthProvider" errors during initial load
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    return defaultAuthContext;
   }
   return context;
 }

@@ -2,9 +2,13 @@ import { Request, Response } from "express";
 import { ProposalStatus } from "@prisma/client";
 import { prisma } from "../../services";
 import { GetNCLDataResponse } from "../../responses";
+import { NCLData } from "../../models";
 import { syncProposalsOverviewOnRead } from "../../services/syncOnRead";
 
 type StatusCountMap = Partial<Record<ProposalStatus, number>>;
+
+// Years to include in NCL response (2025 extended, 2026 current)
+const NCL_YEARS = [2025, 2026];
 
 export const getOverviewSummary = async (_req: Request, res: Response) => {
   try {
@@ -13,16 +17,15 @@ export const getOverviewSummary = async (_req: Request, res: Response) => {
     // New proposals will be available on the next request after sync completes.
     syncProposalsOverviewOnRead();
 
-    const currentYear = new Date().getUTCFullYear();
-
-    const [totalProposals, grouped, nclData] = await Promise.all([
+    const [totalProposals, grouped, nclRecords] = await Promise.all([
       prisma.proposal.count(),
       prisma.proposal.groupBy({
         by: ["status"],
         _count: { status: true },
       }),
-      prisma.nCL.findUnique({
-        where: { year: currentYear },
+      prisma.nCL.findMany({
+        where: { year: { in: NCL_YEARS } },
+        orderBy: { year: "desc" },
       }),
     ]);
 
@@ -44,13 +47,16 @@ export const getOverviewSummary = async (_req: Request, res: Response) => {
       closedProposals: counts[ProposalStatus.CLOSED] ?? 0,
     };
 
+    // Convert NCL records to response format
+    const nclData: NCLData[] = nclRecords.map((record) => ({
+      year: record.year,
+      currentValue: record.current.toString(),
+      targetValue: record.limit.toString(),
+    }));
+
     const response: GetNCLDataResponse = {
-      year: currentYear,
-      // NCL data: currentValue is treasury withdrawals so far, targetValue is the limit
-      // Values are stored in lovelace (BigInt), convert to string for API response
-      currentValue: (nclData?.current ?? BigInt(0)).toString(),
-      targetValue: (nclData?.limit ?? BigInt(0)).toString(),
       ...summary,
+      nclData,
     };
 
     res.json(response);

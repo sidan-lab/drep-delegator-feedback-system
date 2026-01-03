@@ -21,25 +21,27 @@ export function ConnectWalletButton() {
           // Try multiple methods to get an address
           let addr = "";
 
-          // Method 1: Get used addresses
+          // Method 1: Get change address (most reliable for display)
           try {
-            const usedAddresses = await wallet.getUsedAddresses();
-            if (usedAddresses && usedAddresses.length > 0) {
-              addr = usedAddresses[0];
+            const changeAddr = await wallet.getChangeAddress();
+            if (changeAddr) {
+              addr = changeAddr;
+              console.log("[Wallet] Got change address:", addr.slice(0, 20) + "...");
             }
-          } catch {
-            // Ignore and try next method
+          } catch (e) {
+            console.warn("[Wallet] getChangeAddress failed:", e);
           }
 
-          // Method 2: Get change address
+          // Method 2: Get used addresses
           if (!addr) {
             try {
-              const changeAddr = await wallet.getChangeAddress();
-              if (changeAddr) {
-                addr = changeAddr;
+              const usedAddresses = await wallet.getUsedAddresses();
+              if (usedAddresses && usedAddresses.length > 0) {
+                addr = usedAddresses[0];
+                console.log("[Wallet] Got used address:", addr.slice(0, 20) + "...");
               }
-            } catch {
-              // Ignore and try next method
+            } catch (e) {
+              console.warn("[Wallet] getUsedAddresses failed:", e);
             }
           }
 
@@ -49,14 +51,30 @@ export function ConnectWalletButton() {
               const unusedAddresses = await wallet.getUnusedAddresses();
               if (unusedAddresses && unusedAddresses.length > 0) {
                 addr = unusedAddresses[0];
+                console.log("[Wallet] Got unused address:", addr.slice(0, 20) + "...");
               }
-            } catch {
-              // Ignore
+            } catch (e) {
+              console.warn("[Wallet] getUnusedAddresses failed:", e);
+            }
+          }
+
+          // Method 4: Try reward addresses as fallback
+          if (!addr) {
+            try {
+              const rewardAddresses = await wallet.getRewardAddresses();
+              if (rewardAddresses && rewardAddresses.length > 0) {
+                addr = rewardAddresses[0];
+                console.log("[Wallet] Got reward address:", addr.slice(0, 20) + "...");
+              }
+            } catch (e) {
+              console.warn("[Wallet] getRewardAddresses failed:", e);
             }
           }
 
           if (addr) {
             setAddress(addr);
+          } else {
+            console.warn("[Wallet] No address found from any method");
           }
 
           // Get wallet icon from window.cardano
@@ -67,7 +85,7 @@ export function ConnectWalletButton() {
             }
           }
         } catch (err) {
-          console.error("Failed to get wallet info:", err);
+          console.error("[Wallet] Failed to get wallet info:", err);
         }
       } else {
         setAddress("");

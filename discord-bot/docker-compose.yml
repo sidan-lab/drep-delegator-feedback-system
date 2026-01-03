@@ -1,0 +1,21 @@
+services:
+  # DRep Discord Bot
+  drep-discord-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: drep-discord-bot:latest
+    container_name: drep_discord_bot
+    env_file:
+      - .env
+    environment:
+      # Override API_BASE_URL to connect to the API service via shared network
+      # Use the container name as hostname
+      API_BASE_URL: http://drep_delegator_feedback_api:3001
+    restart: unless-stopped
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    external: true

@@ -1,0 +1,113 @@
+name: Deploy Discord Bot to GCP Compute Engine
+
+on:
+  push:
+    branches: [gcp-deployment] # Change to main after verification
+    paths:
+      - "discord-bot/**"
+      - ".github/workflows/deploy-discord-bot-gcp.yml"
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: sidan-445102
+  REGION: asia-south1
+  ZONE: asia-south1-a
+  SERVICE_NAME: delegator-feedback-discord-bot
+  ARTIFACT_REGISTRY: asia-south1-docker.pkg.dev
+  REPOSITORY: delegator-feedback-discord-bot
+  VM_NAME: delegator-feedback-discord-bot
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Discord Bot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Build Docker image
+        working-directory: discord-bot
+        run: |
+          docker build \
+            -t "${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
+            -t "${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest" \
+            .
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push "${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          docker push "${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest"
+
+      - name: Deploy to Compute Engine
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME }} \
+            --zone=${{ env.ZONE }} \
+            --command="
+              # Configure docker to use Artifact Registry
+              docker-credential-gcr configure-docker --registries=${{ env.ARTIFACT_REGISTRY }}
+
+              # Stop and remove existing container
+              docker stop ${{ env.SERVICE_NAME }} 2>/dev/null || true
+              docker rm ${{ env.SERVICE_NAME }} 2>/dev/null || true
+
+              # Pull new image
+              docker pull ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+              # Run new container
+              # Note: API_BASE_URL and FRONTEND_BASE_URL have hardcoded defaults in config.ts
+              docker run -d \
+                --name ${{ env.SERVICE_NAME }} \
+                --restart unless-stopped \
+                -e DISCORD_BOT_TOKEN='${{ secrets.DISCORD_BOT_TOKEN }}' \
+                -e DISCORD_CLIENT_ID='${{ secrets.DISCORD_CLIENT_ID }}' \
+                -e DISCORD_GUILD_ID='${{ secrets.DISCORD_GUILD_ID }}' \
+                -e API_KEY='${{ secrets.API_KEY }}' \
+                -e DREP_ID='${{ secrets.DREP_ID }}' \
+                -e VERIFICATION_FRONTEND_URL='${{ secrets.VERIFICATION_FRONTEND_URL }}' \
+                -e CRON_PROPOSAL_SYNC='*/5 * * * *' \
+                -e FORUM_CHANNEL_ID='${{ secrets.FORUM_CHANNEL_ID }}' \
+                -e DELEGATE_CHANNEL_ID='${{ secrets.DELEGATE_CHANNEL_ID }}' \
+                -e ROLE_ID_DELEGATED='${{ secrets.ROLE_ID_DELEGATED }}' \
+                -e TAG_ID_PARAMETER_CHANGE='${{ secrets.TAG_ID_PARAMETER_CHANGE }}' \
+                -e TAG_ID_HARD_FORK_INITIATION='${{ secrets.TAG_ID_HARD_FORK_INITIATION }}' \
+                -e TAG_ID_TREASURY_WITHDRAWALS='${{ secrets.TAG_ID_TREASURY_WITHDRAWALS }}' \
+                -e TAG_ID_NO_CONFIDENCE='${{ secrets.TAG_ID_NO_CONFIDENCE }}' \
+                -e TAG_ID_NEW_COMMITTEE='${{ secrets.TAG_ID_NEW_COMMITTEE }}' \
+                -e TAG_ID_NEW_CONSTITUTION='${{ secrets.TAG_ID_NEW_CONSTITUTION }}' \
+                -e TAG_ID_INFO_ACTION='${{ secrets.TAG_ID_INFO_ACTION }}' \
+                ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+              # Cleanup old images
+              docker image prune -f
+            "
+
+      - name: Verify Deployment
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME }} \
+            --zone=${{ env.ZONE }} \
+            --command="docker ps | grep ${{ env.SERVICE_NAME }}"
+
+      - name: Deployment Summary
+        run: |
+          echo "## Discord Bot Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Compute Engine Instance" >> $GITHUB_STEP_SUMMARY
+          echo "- **VM Name:** ${{ env.VM_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Zone:** ${{ env.ZONE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

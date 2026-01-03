@@ -20,7 +20,7 @@ exports.config = {
     },
     // API Configuration
     api: {
-        baseUrl: process.env.API_BASE_URL,
+        baseUrl: process.env.API_BASE_URL || "https://drep-delegator-api-52544399492.asia-south1.run.app",
         apiKey: process.env.API_KEY,
     },
     // DRep Configuration
@@ -42,7 +42,7 @@ exports.config = {
     },
     // Shared Frontend Configuration (for proposal details links)
     frontend: {
-        baseUrl: process.env.FRONTEND_BASE_URL,
+        baseUrl: process.env.FRONTEND_BASE_URL || "https://delegator-gov.sidan.io",
     },
 };
 function validateConfig() {
@@ -55,9 +55,6 @@ function validateConfig() {
         errors.push("DISCORD_CLIENT_ID is required");
     }
     // Required API configuration
-    if (!exports.config.api.baseUrl) {
-        errors.push("API_BASE_URL is required");
-    }
     if (!exports.config.api.apiKey) {
         errors.push("API_KEY is required");
     }

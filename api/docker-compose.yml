@@ -20,9 +20,8 @@ services:
       DISABLE_CRON_IN_API: "true"
     restart: unless-stopped
     command: ["node", ".build/index.js"]
-    # Uncomment if you need to connect to other services via external network
-    # networks:
-    #   - shared-network
+    networks:
+      - shared-network
 
   # drep delegator feedback Cron Service
   cardano-governance-action-sync-cron:
@@ -44,11 +43,9 @@ services:
       # PROPOSAL_SYNC_SCHEDULE: "* * * * *"
     restart: unless-stopped
     command: ["node", ".build/cron.js"]
-    # Uncomment if you need to connect to other services via external network
-    # networks:
-    #   - shared-network
-# Uncomment if you need to connect to other docker-compose services
-# Create the network first: docker network create shared-network
-# networks:
-#   shared-network:
-#     external: true
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    external: true

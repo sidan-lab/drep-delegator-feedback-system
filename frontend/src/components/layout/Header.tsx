@@ -1,6 +1,12 @@
 import Link from "next/link";
-import { ConnectWalletButton } from "@/components/wallet";
+import dynamic from "next/dynamic";
 import { Users } from "lucide-react";
+
+// Dynamic import to avoid MeshSDK SSR bundling issues
+const ConnectWalletButton = dynamic(
+  () => import("@/components/wallet/ConnectWalletButton").then((mod) => mod.ConnectWalletButton),
+  { ssr: false }
+);
 
 export function Header() {
   return (

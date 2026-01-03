@@ -20,8 +20,7 @@ This repository is created as part of a Project Catalyst initiative by **SIDAN L
 
 ## Repository structure
 
-> ⚠️ Work in progress  
-> The structure below is tentative and will be updated as the project evolves.
+> ⚠️ Work in progress - The structure below is tentative and will be updated as the project evolves.
 
 - `discord-bot/` – discord-bot to interact with the dedicated discord channel to gather delegator feedback.
 - `frontend/` – Web UI for DReps to read and review delegator feedback, review governance actions and submit vote.
