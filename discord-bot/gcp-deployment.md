@@ -253,10 +253,10 @@ env:
 
 ### 4.1 Trigger Deployment
 
-Push to the `gcp-deployment` branch (or `main` after verification):
+Push to the `main` branch:
 
 ```bash
-git push origin gcp-deployment
+git push origin main
 ```
 
 The GitHub Actions workflow will:
