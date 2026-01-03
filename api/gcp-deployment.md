@@ -30,9 +30,9 @@ GitHub Actions
 
 ### Cloud Scheduler Jobs
 
-| Job | Schedule | Endpoint | Description |
-|-----|----------|----------|-------------|
-| `drep-proposal-sync` | Every 15 min | `POST /data/trigger-sync` | Sync proposals from Koios |
+| Job                     | Schedule          | Endpoint                        | Description                |
+| ----------------------- | ----------------- | ------------------------------- | -------------------------- |
+| `drep-proposal-sync`    | Every 15 min      | `POST /data/trigger-sync`       | Sync proposals from Koios  |
 | `drep-voter-power-sync` | Daily at midnight | `POST /data/trigger-voter-sync` | Sync DRep/SPO voting power |
 
 ---
@@ -186,16 +186,16 @@ gcloud iam workload-identity-pools providers describe "github-provider" \
 
 Go to your repository → Settings → Secrets and variables → Actions → New repository secret
 
-| Secret | Description | Example |
-|--------|-------------|---------|
+| Secret                           | Description                              | Example                                                                                        |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | Workload Identity Provider resource name | `projects/123456/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
-| `GCP_SERVICE_ACCOUNT` | Service account email | `github-actions-sa@your-project.iam.gserviceaccount.com` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://api_user:password@/drep_delegator?host=/cloudsql/project:region:instance` |
-| `MAINNET_BLOCKFROST_API_KEY` | Blockfrost API key | `mainnetXXX...` |
-| `KOIOS_API_KEY` | Koios API key (optional) | `xxx...` |
-| `SERVER_API_KEY` | Internal API key for cron jobs | Generate: `openssl rand -hex 32` |
-| `JWT_SECRET` | JWT signing secret | Generate: `openssl rand -hex 32` |
-| `ADMIN_WALLET_ADDRESSES` | Comma-separated admin wallet addresses | `addr1...,addr1...` |
+| `GCP_SERVICE_ACCOUNT`            | Service account email                    | `github-actions-sa@your-project.iam.gserviceaccount.com`                                       |
+| `DATABASE_URL`                   | PostgreSQL connection string             | `postgresql://api_user:password@/drep_delegator?host=/cloudsql/project:region:instance`        |
+| `MAINNET_BLOCKFROST_API_KEY`     | Blockfrost API key                       | `mainnetXXX...`                                                                                |
+| `KOIOS_API_KEY`                  | Koios API key (optional)                 | `xxx...`                                                                                       |
+| `SERVER_API_KEY`                 | Internal API key for cron jobs           | Generate: `openssl rand -hex 32`                                                               |
+| `JWT_SECRET`                     | JWT signing secret                       | Generate: `openssl rand -hex 32`                                                               |
+| `ADMIN_WALLET_ADDRESSES`         | Comma-separated admin wallet addresses   | `addr1...,addr1...`                                                                            |
 
 ### Database URL Format
 
@@ -204,6 +204,7 @@ postgresql://USER:PASSWORD@/DATABASE?host=/cloudsql/PROJECT_ID:REGION:INSTANCE_N
 ```
 
 Example:
+
 ```
 postgresql://api_user:mysecretpassword@/drep_delegator?host=/cloudsql/my-project:asia-south1:drep-delegator-feedback
 ```
@@ -216,10 +217,10 @@ Edit `.github/workflows/deploy-api-gcp.yml` and update these values:
 
 ```yaml
 env:
-  PROJECT_ID: your-gcp-project-id      # Change this
-  REGION: asia-south1                   # Change if needed
+  PROJECT_ID: your-gcp-project-id # Change this
+  REGION: asia-south1 # Change if needed
   SERVICE_NAME: drep-delegator-api
-  ARTIFACT_REGISTRY: asia-south1-docker.pkg.dev  # Match your region
+  ARTIFACT_REGISTRY: asia-south1-docker.pkg.dev # Match your region
   REPOSITORY: drep-delegator-feedback
 ```
 
@@ -234,10 +235,11 @@ Also update the VPC connector and Cloud SQL instance names in the `gcloud run de
 Push to the deployment branch:
 
 ```bash
-git push origin gcp-deployment
+git push origin main
 ```
 
 The GitHub Actions workflow will:
+
 1. Build the Docker image
 2. Push to Artifact Registry
 3. Deploy to Cloud Run
@@ -320,6 +322,7 @@ gcloud scheduler jobs run drep-proposal-sync --location=$REGION --project=$PROJE
 ### Scale Configuration
 
 The default configuration:
+
 - Memory: 1GB
 - CPU: 1
 - Min instances: 0 (scale to zero)
@@ -357,6 +360,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 ### Rate limit errors (429)
 
 The API has built-in rate limiting. If you see 429 errors from Koios:
+
 - Reduce sync frequency in Cloud Scheduler
 - Add `KOIOS_API_KEY` for higher rate limits
 
@@ -364,24 +368,25 @@ The API has built-in rate limiting. If you see 429 errors from Koios:
 
 ## Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `MAINNET_BLOCKFROST_API_KEY` | Yes | Blockfrost API key |
-| `SERVER_API_KEY` | Yes | Internal API key for cron jobs |
-| `JWT_SECRET` | Yes | JWT signing secret |
-| `ADMIN_WALLET_ADDRESSES` | Yes | Admin wallet addresses |
-| `KOIOS_API_KEY` | No | Koios API key for higher rate limits |
-| `KOIOS_BASE_URL` | No | Koios API URL (default: `https://api.koios.rest/api/v1`) |
-| `RATE_LIMIT_WINDOW_MS` | No | Rate limit window (default: 60000) |
-| `RATE_LIMIT_MAX_REQUESTS` | No | Max requests per window (default: 100) |
-| `JWT_EXPIRY_SECONDS` | No | JWT token expiry (default: 604800 = 7 days) |
-| `DISABLE_CRON_IN_API` | No | Disable in-process cron (default: true for Cloud Run) |
+| Variable                     | Required | Description                                              |
+| ---------------------------- | -------- | -------------------------------------------------------- |
+| `DATABASE_URL`               | Yes      | PostgreSQL connection string                             |
+| `MAINNET_BLOCKFROST_API_KEY` | Yes      | Blockfrost API key                                       |
+| `SERVER_API_KEY`             | Yes      | Internal API key for cron jobs                           |
+| `JWT_SECRET`                 | Yes      | JWT signing secret                                       |
+| `ADMIN_WALLET_ADDRESSES`     | Yes      | Admin wallet addresses                                   |
+| `KOIOS_API_KEY`              | No       | Koios API key for higher rate limits                     |
+| `KOIOS_BASE_URL`             | No       | Koios API URL (default: `https://api.koios.rest/api/v1`) |
+| `RATE_LIMIT_WINDOW_MS`       | No       | Rate limit window (default: 60000)                       |
+| `RATE_LIMIT_MAX_REQUESTS`    | No       | Max requests per window (default: 100)                   |
+| `JWT_EXPIRY_SECONDS`         | No       | JWT token expiry (default: 604800 = 7 days)              |
+| `DISABLE_CRON_IN_API`        | No       | Disable in-process cron (default: true for Cloud Run)    |
 
 ---
 
 ## Support
 
 For issues or questions:
+
 - Open an issue on GitHub
 - Join the community Discord server
