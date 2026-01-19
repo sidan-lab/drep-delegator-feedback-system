@@ -493,3 +493,100 @@ export async function rejectDrep(
     token
   );
 }
+
+// ============================================================================
+// Notification Preference API Functions
+// ============================================================================
+
+import type {
+  NotificationPreferenceInput,
+  NotificationPreferenceResponse,
+  PushSubscriptionResponse,
+} from "@/types/auth";
+
+/**
+ * Get notification preferences for the authenticated DRep
+ */
+export async function getNotificationPreferences(
+  token: string
+): Promise<NotificationPreferenceResponse> {
+  return fetchApiWithAuth<NotificationPreferenceResponse>(
+    API_ENDPOINTS.notificationPreferences,
+    token
+  );
+}
+
+/**
+ * Create or update notification preferences
+ */
+export async function updateNotificationPreferences(
+  token: string,
+  preferences: NotificationPreferenceInput
+): Promise<NotificationPreferenceResponse> {
+  return postApi<NotificationPreferenceResponse>(
+    API_ENDPOINTS.notificationPreferences,
+    preferences,
+    token
+  );
+}
+
+/**
+ * Delete notification preferences
+ */
+export async function deleteNotificationPreferences(
+  token: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(API_ENDPOINTS.notificationPreferences, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `API Error (${response.status})`);
+  }
+
+  return data;
+}
+
+/**
+ * Register a web push subscription
+ */
+export async function registerPushSubscription(
+  token: string,
+  subscription: PushSubscription
+): Promise<PushSubscriptionResponse> {
+  return postApi<PushSubscriptionResponse>(
+    API_ENDPOINTS.pushSubscription,
+    { subscription: JSON.stringify(subscription) },
+    token
+  );
+}
+
+/**
+ * Unregister web push subscription
+ */
+export async function unregisterPushSubscription(
+  token: string
+): Promise<PushSubscriptionResponse> {
+  const response = await fetch(API_ENDPOINTS.pushSubscription, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({}),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `API Error (${response.status})`);
+  }
+
+  return data;
+}

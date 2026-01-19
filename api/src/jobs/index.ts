@@ -5,6 +5,7 @@
 
 import { startProposalSyncJob } from "./sync-proposals.job";
 import { startVoterPowerSyncJob } from "./sync-voter-power.job";
+import { startDeadlineAlertsJob } from "./deadline-alerts.job";
 
 /**
  * Starts all registered cron jobs
@@ -19,10 +20,8 @@ export const startAllJobs = () => {
   // Start voter power sync job (DRep and SPO voting power updates)
   startVoterPowerSyncJob();
 
-  // Add more jobs here as needed
-  // Example:
-  // startVoteCleanupJob();
-  // startMetricsJob();
+  // Start deadline alerts job (notification for upcoming voting deadlines)
+  startDeadlineAlertsJob();
 
   console.log("[Cron] All cron jobs initialized");
 };

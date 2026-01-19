@@ -14,6 +14,7 @@ import proposalRouter from "./routes/proposal.route";
 import sentimentRouter from "./routes/sentiment.route";
 import authRouter from "./routes/auth.route";
 import adminRouter from "./routes/admin.route";
+import notificationRouter from "./routes/notification.route";
 import { apiKeyAuth } from "./middleware/auth.middleware";
 import { startAllJobs } from "./jobs";
 
@@ -75,6 +76,9 @@ app.use("/user", apiKeyAuth, userRouter);
 
 // Sentiment routes handle auth per-endpoint (public, per-DRep, or admin)
 app.use("/sentiment", sentimentRouter);
+
+// Notification routes (JWT for DRep preferences, API key for bot/cron)
+app.use("/notification", notificationRouter);
 
 // Error handling middleware
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

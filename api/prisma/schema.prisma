@@ -211,6 +211,25 @@ enum RegistrationStatus {
   REJECTED
 }
 
+// Notification System Types
+
+enum AlertRecipientType {
+  DREP
+  DELEGATOR
+}
+
+enum AlertChannel {
+  DISCORD_CHANNEL
+  DISCORD_DM
+  WEB_PUSH
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model DrepRegistration {
   id             String             @id @default(uuid())
   drepId         String             @unique // DRep ID (CIP-129 format)
@@ -225,9 +244,10 @@ model DrepRegistration {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  user                User?               @relation(fields: [userId], references: [id])
-  guilds              DiscordGuild[]
-  verifiedDelegators  VerifiedDelegator[]
+  user                   User?               @relation(fields: [userId], references: [id])
+  guilds                 DiscordGuild[]
+  verifiedDelegators     VerifiedDelegator[]
+  notificationPreference NotificationPreference?
 
   @@index([apiKey])
   @@index([status])
@@ -250,8 +270,8 @@ model VerifiedDelegator {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  drepRegistration   DrepRegistration @relation(fields: [drepId], references: [drepId])
-  reactions          DiscordReaction[]
+  drepRegistration       DrepRegistration @relation(fields: [drepId], references: [drepId])
+  reactions              DiscordReaction[]
 
   @@unique([drepId, discordUserId])
   @@unique([drepId, stakeAddress])
@@ -333,4 +353,68 @@ model GuildProposalPost {
   @@index([proposalId])
   @@index([threadId])
   @@index([drepId])
+}
+
+// Notification Preferences for DReps (web push only for registered DReps)
+
+model NotificationPreference {
+  id                    String   @id @default(uuid())
+
+  // DRep identification
+  drepId                String   @unique  // DRep ID (CIP-129 format)
+  discordUserId         String?           // Discord user ID for DM delivery
+
+  // Channel toggles
+  discordChannelEnabled Boolean  @default(true)   // Forum thread reminders
+  discordDmEnabled      Boolean  @default(false)  // Direct messages
+  webPushEnabled        Boolean  @default(false)  // Browser push notifications
+
+  // Alert threshold configuration (days before expiry)
+  alertDays             Int[]    @default([7, 3, 1])
+
+  // Web push subscription data (VAPID)
+  pushSubscription      String?  // JSON-stringified PushSubscription
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  drepRegistration      DrepRegistration @relation(fields: [drepId], references: [drepId])
+
+  @@index([discordUserId])
+  @@index([webPushEnabled])
+}
+
+// Deadline Alerts - Tracks sent alerts to prevent duplicates
+
+model DeadlineAlert {
+  id                String             @id @default(uuid())
+
+  // What was alerted
+  proposalId        String             // Cardano governance action ID
+  drepId            String             // DRep ID (CIP-129 format)
+  recipientType     AlertRecipientType // DREP or DELEGATOR
+  recipientId       String             // drepId or verifiedDelegatorId
+
+  // Alert details
+  alertChannel      AlertChannel       // DISCORD_CHANNEL, DISCORD_DM, WEB_PUSH
+  daysBeforeExpiry  Int                // e.g., 7, 3, 1
+
+  // Context at time of alert
+  drepHasVoted      Boolean  @default(false)
+  drepVote          VoteType?            // YES, NO, ABSTAIN (null if not voted)
+
+  // Delivery tracking
+  sentAt            DateTime?
+  deliveryStatus    DeliveryStatus @default(PENDING)
+  errorMessage      String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([proposalId, drepId, recipientType, recipientId, alertChannel, daysBeforeExpiry])
+  @@index([proposalId])
+  @@index([drepId])
+  @@index([deliveryStatus])
+  @@index([createdAt])
 }

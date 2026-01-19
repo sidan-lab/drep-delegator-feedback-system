@@ -385,6 +385,91 @@ class ApiClient {
       };
     }
   }
+
+  /**
+   * Get pending deadline alerts for Discord
+   * Returns alerts that need to be sent via Discord channel or DM
+   */
+  async getPendingDeadlineAlerts(drepId?: string): Promise<{
+    success: boolean;
+    alerts: Array<{
+      id: string;
+      proposalId: string;
+      drepId: string;
+      recipientType: "DREP" | "DELEGATOR";
+      recipientId: string;
+      alertChannel: "DISCORD_CHANNEL" | "DISCORD_DM";
+      daysBeforeExpiry: number;
+      drepHasVoted: boolean;
+      drepVote: "YES" | "NO" | "ABSTAIN" | null;
+      proposal: {
+        proposalId: string;
+        title: string;
+        governanceActionType: string | null;
+        expirationEpoch: number | null;
+        status: string;
+      } | null;
+      drepRegistration: {
+        drepId: string;
+        drepName: string | null;
+        discordGuildId: string | null;
+      } | null;
+      guildPost: {
+        threadId: string;
+        guildId: string;
+      } | null;
+    }>;
+    count: number;
+  }> {
+    try {
+      const params: Record<string, string> = {};
+      if (drepId) params.drepId = drepId;
+
+      const response = await this.client.get("/notification/pending-alerts", { params });
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        `[API] Failed to get pending deadline alerts:`,
+        error.response?.data || error.message
+      );
+      return {
+        success: false,
+        alerts: [],
+        count: 0,
+      };
+    }
+  }
+
+  /**
+   * Mark a deadline alert as sent or failed
+   */
+  async markAlertSent(
+    alertId: string,
+    status: "SENT" | "FAILED",
+    errorMessage?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const response = await this.client.post("/notification/mark-alert-sent", {
+        alertId,
+        status,
+        errorMessage,
+      });
+      console.log(`[API] Deadline alert ${alertId} marked as ${status}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        `[API] Failed to mark alert sent:`,
+        error.response?.data || error.message
+      );
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to mark alert as sent",
+      };
+    }
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -44,4 +44,8 @@ export const API_ENDPOINTS = {
   adminListDreps: "/api/admin/drep",
   adminApproveDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/approve`,
   adminRejectDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/reject`,
+
+  // Notification preference endpoints (JWT-authenticated)
+  notificationPreferences: "/api/notification/preferences",
+  pushSubscription: "/api/notification/push-subscription",
 } as const;

@@ -232,6 +232,48 @@ class ApiClient {
             };
         }
     }
+    /**
+     * Get pending deadline alerts for Discord
+     * Returns alerts that need to be sent via Discord channel or DM
+     */
+    async getPendingDeadlineAlerts(drepId) {
+        try {
+            const params = {};
+            if (drepId)
+                params.drepId = drepId;
+            const response = await this.client.get("/notification/pending-alerts", { params });
+            return response.data;
+        }
+        catch (error) {
+            console.error(`[API] Failed to get pending deadline alerts:`, error.response?.data || error.message);
+            return {
+                success: false,
+                alerts: [],
+                count: 0,
+            };
+        }
+    }
+    /**
+     * Mark a deadline alert as sent or failed
+     */
+    async markAlertSent(alertId, status, errorMessage) {
+        try {
+            const response = await this.client.post("/notification/mark-alert-sent", {
+                alertId,
+                status,
+                errorMessage,
+            });
+            console.log(`[API] Deadline alert ${alertId} marked as ${status}`);
+            return response.data;
+        }
+        catch (error) {
+            console.error(`[API] Failed to mark alert sent:`, error.response?.data || error.message);
+            return {
+                success: false,
+                message: error.response?.data?.message || "Failed to mark alert as sent",
+            };
+        }
+    }
 }
 exports.apiClient = new ApiClient();
 //# sourceMappingURL=api.js.map

@@ -17,6 +17,7 @@ import { handleMessage } from "./events/messageHandler";
 import { handleButtonInteraction } from "./events/buttonHandler";
 import { initProposalSync } from "./scheduled/proposalSync";
 import { initDrepVoteNotifier } from "./scheduled/drepVoteNotifier";
+import { initDeadlineReminder } from "./scheduled/deadlineReminder";
 
 // Validate configuration before starting
 validateConfig();
@@ -27,6 +28,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages, // For sending DM notifications
   ],
   partials: [
     Partials.Message,
@@ -79,6 +81,9 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Initialize DRep vote notifier (polls for pending notifications)
   initDrepVoteNotifier(client);
+
+  // Initialize deadline reminder (polls for pending deadline alerts)
+  initDeadlineReminder(client);
 });
 
 // Event: Interaction (slash commands and buttons)
