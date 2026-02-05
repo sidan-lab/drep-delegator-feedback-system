@@ -11,8 +11,8 @@ import {
 import { config } from "../config";
 import { apiClient } from "../api";
 
-// Polling interval in milliseconds (30 seconds)
-const POLL_INTERVAL = 30 * 1000;
+// Polling interval in milliseconds (10 seconds)
+const POLL_INTERVAL = 10 * 1000;
 
 let pollingInterval: NodeJS.Timeout | null = null;
 let lastLogTime: number = 0;

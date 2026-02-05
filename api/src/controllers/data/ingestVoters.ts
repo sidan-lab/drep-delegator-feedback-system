@@ -5,6 +5,7 @@ import {
   ingestSpo,
   ingestCc,
 } from "../../services/ingestion/voter.service";
+import { getStringParam } from "../../utils/requestHelpers";
 
 const prisma = new PrismaClient();
 
@@ -19,7 +20,7 @@ const prisma = new PrismaClient();
  */
 export const postIngestDrep = async (req: Request, res: Response) => {
   try {
-    const { drep_id } = req.params;
+    const drep_id = getStringParam(req.params.drep_id);
 
     if (!drep_id) {
       return res.status(400).json({
@@ -51,7 +52,7 @@ export const postIngestDrep = async (req: Request, res: Response) => {
     res.status(500).json({
       error: "Failed to ingest DRep",
       message: errorMessage,
-      drep_id: req.params.drep_id,
+      drep_id: getStringParam(req.params.drep_id),
     });
   }
 };
@@ -67,7 +68,7 @@ export const postIngestDrep = async (req: Request, res: Response) => {
  */
 export const postIngestSpo = async (req: Request, res: Response) => {
   try {
-    const { pool_id } = req.params;
+    const pool_id = getStringParam(req.params.pool_id);
 
     if (!pool_id) {
       return res.status(400).json({
@@ -99,7 +100,7 @@ export const postIngestSpo = async (req: Request, res: Response) => {
     res.status(500).json({
       error: "Failed to ingest SPO",
       message: errorMessage,
-      pool_id: req.params.pool_id,
+      pool_id: getStringParam(req.params.pool_id),
     });
   }
 };
@@ -115,7 +116,7 @@ export const postIngestSpo = async (req: Request, res: Response) => {
  */
 export const postIngestCc = async (req: Request, res: Response) => {
   try {
-    const { cc_id } = req.params;
+    const cc_id = getStringParam(req.params.cc_id);
 
     if (!cc_id) {
       return res.status(400).json({
@@ -147,7 +148,7 @@ export const postIngestCc = async (req: Request, res: Response) => {
     res.status(500).json({
       error: "Failed to ingest CC member",
       message: errorMessage,
-      cc_id: req.params.cc_id,
+      cc_id: getStringParam(req.params.cc_id),
     });
   }
 };

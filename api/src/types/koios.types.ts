@@ -28,7 +28,7 @@ export interface KoiosProposal {
   enacted_epoch?: number | null; // Maps to Proposal.enactedEpoch
   dropped_epoch?: number | null; // Maps to Proposal.droppedEpoch
   expired_epoch?: number | null; // Maps to Proposal.expiredEpoch
-  expiration?: number | null; // Maps to Proposal.expirationEpoch (epoch when voting ends)
+  expiration?: number | null; // Maps to Proposal.expirationEpoch (first epoch where voting is NO LONGER valid - voting ends at epochToTimestamp(N-1) - 1)
   meta_url?: string | null; // Fallback for metadata fetch
   meta_hash?: string | null;
   meta_json?: {

@@ -166,9 +166,8 @@ export interface NotificationPreference {
   discordUserId: string | null;
   discordChannelEnabled: boolean;
   discordDmEnabled: boolean;
-  webPushEnabled: boolean;
+  inAppToastEnabled: boolean;
   alertDays: number[];
-  hasPushSubscription: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -177,7 +176,7 @@ export interface NotificationPreferenceInput {
   discordUserId?: string;
   discordChannelEnabled?: boolean;
   discordDmEnabled?: boolean;
-  webPushEnabled?: boolean;
+  inAppToastEnabled?: boolean;
   alertDays?: number[];
 }
 

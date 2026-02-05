@@ -133,7 +133,7 @@ model Proposal { // get proposals from https://api.koios.rest/api/v1/proposal_li
   enactedEpoch         Int?  // enacted_epoch value from proposal_list api response (can be null)
   droppedEpoch         Int?  // dropped_epoch value from proposal_list api response (can be null)
   expiredEpoch         Int?  // expired_epoch value from proposal_list api response (can be null)
-  expirationEpoch      Int?  // expiration value from proposal_list api response (the epoch when voting ends)
+  expirationEpoch      Int?  // First epoch where voting is NO LONGER valid (voting ends at END of epoch N-2, i.e. epochToTimestamp(N-1) - 1 second)
   // All voting power fields stored in lovelace (1 ADA = 1,000,000 lovelace). Convert to ADA in frontend.
   drepTotalVotePower        BigInt?  // amount from https://api.koios.rest/#get-/drep_epoch_summary
   drepActiveYesVotePower     BigInt?  // drep_active_yes_vote_power value from proposal_voting_summary api response
@@ -221,7 +221,7 @@ enum AlertRecipientType {
 enum AlertChannel {
   DISCORD_CHANNEL
   DISCORD_DM
-  WEB_PUSH
+  IN_APP_TOAST
 }
 
 enum DeliveryStatus {
@@ -367,13 +367,10 @@ model NotificationPreference {
   // Channel toggles
   discordChannelEnabled Boolean  @default(true)   // Forum thread reminders
   discordDmEnabled      Boolean  @default(false)  // Direct messages
-  webPushEnabled        Boolean  @default(false)  // Browser push notifications
+  inAppToastEnabled     Boolean  @default(true)   // In-app toast notifications
 
   // Alert threshold configuration (days before expiry)
   alertDays             Int[]    @default([7, 3, 1])
-
-  // Web push subscription data (VAPID)
-  pushSubscription      String?  // JSON-stringified PushSubscription
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -382,7 +379,7 @@ model NotificationPreference {
   drepRegistration      DrepRegistration @relation(fields: [drepId], references: [drepId])
 
   @@index([discordUserId])
-  @@index([webPushEnabled])
+  @@index([inAppToastEnabled])
 }
 
 // Deadline Alerts - Tracks sent alerts to prevent duplicates
@@ -397,7 +394,7 @@ model DeadlineAlert {
   recipientId       String             // drepId or verifiedDelegatorId
 
   // Alert details
-  alertChannel      AlertChannel       // DISCORD_CHANNEL, DISCORD_DM, WEB_PUSH
+  alertChannel      AlertChannel       // DISCORD_CHANNEL, DISCORD_DM, IN_APP_TOAST
   daysBeforeExpiry  Int                // e.g., 7, 3, 1
 
   // Context at time of alert

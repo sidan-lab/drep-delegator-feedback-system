@@ -81,7 +81,7 @@ export const updatePreferences = async (req: Request, res: Response) => {
         drepId: drepRegistration.drepId,
         discordChannelEnabled: updateData.discordChannelEnabled as boolean ?? true,
         discordDmEnabled: updateData.discordDmEnabled as boolean ?? false,
-        webPushEnabled: updateData.webPushEnabled as boolean ?? false,
+        inAppToastEnabled: updateData.inAppToastEnabled as boolean ?? true,
         alertDays: updateData.alertDays as number[] ?? [7, 3, 1],
         discordUserId: updateData.discordUserId as string ?? null,
       },

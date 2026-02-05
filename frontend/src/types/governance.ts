@@ -76,6 +76,8 @@ export interface GovernanceAction {
   // Epoch information
   submissionEpoch: number;
   expiryEpoch: number;
+  submissionDate?: string; // ISO 8601 date string
+  expiryDate?: string; // ISO 8601 date string
 
   // Raw API vote info objects (for advanced use)
   drep?: GovernanceActionVoteInfo;

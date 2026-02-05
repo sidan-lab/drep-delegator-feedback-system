@@ -34,6 +34,8 @@ export interface GovernanceAction {
   totalAbstain: number;
   submissionEpoch: number;
   expiryEpoch: number;
+  submissionDate?: string; // ISO 8601 timestamp when submission epoch starts
+  expiryDate?: string; // ISO 8601 timestamp when expiry epoch starts (voting deadline)
   // Voting threshold and status fields
   threshold: VotingThreshold;
   votingStatus: VotingStatus;

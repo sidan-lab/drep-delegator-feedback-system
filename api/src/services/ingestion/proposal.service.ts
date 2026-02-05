@@ -427,6 +427,35 @@ export async function getCurrentEpoch(): Promise<number> {
 }
 
 /**
+ * Gets current block time (Unix timestamp) from Koios API
+ * Falls back to system time if API call fails
+ */
+export async function getCurrentBlockTime(): Promise<number> {
+  const tip = await koiosGet<Array<{ epoch_no: number; block_time: number }>>("/tip");
+  return tip?.[0]?.block_time || Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Interface for epoch information
+ */
+export interface EpochInfo {
+  epochNo: number;
+  blockTime: number;
+}
+
+/**
+ * Gets current epoch number and block time in a single API call
+ * More efficient than calling getCurrentEpoch() and getCurrentBlockTime() separately
+ */
+export async function getCurrentEpochInfo(): Promise<EpochInfo> {
+  const tip = await koiosGet<Array<{ epoch_no: number; block_time: number }>>("/tip");
+  return {
+    epochNo: tip?.[0]?.epoch_no || 0,
+    blockTime: tip?.[0]?.block_time || Math.floor(Date.now() / 1000),
+  };
+}
+
+/**
  * Derives proposal status from epoch fields
  * Based on: ratified_epoch, expired_epoch, enacted_epoch, dropped_epoch vs current epoch
  *

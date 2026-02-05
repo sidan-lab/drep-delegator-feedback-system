@@ -8,6 +8,7 @@ import {
 } from "../../libs/proposalMapper";
 import { GetProposalInfoResponse } from "../../responses";
 import { syncProposalDetailsOnRead } from "../../services/syncOnRead";
+import { getStringParam } from "../../utils/requestHelpers";
 
 const buildProposalLookup = (
   identifier: string
@@ -52,7 +53,7 @@ const buildProposalLookup = (
 
 export const getProposalDetails = async (req: Request, res: Response) => {
   try {
-    const proposalId = req.params.proposal_id;
+    const proposalId = getStringParam(req.params.proposal_id);
 
     if (!proposalId) {
       return res.status(400).json({

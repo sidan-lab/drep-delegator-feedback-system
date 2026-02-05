@@ -29,6 +29,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages, // For sending DM notifications
+    GatewayIntentBits.GuildMembers, // Required to fetch user info for DMs
   ],
   partials: [
     Partials.Message,

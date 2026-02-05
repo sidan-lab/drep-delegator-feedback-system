@@ -47,5 +47,5 @@ export const API_ENDPOINTS = {
 
   // Notification preference endpoints (JWT-authenticated)
   notificationPreferences: "/api/notification/preferences",
-  pushSubscription: "/api/notification/push-subscription",
+  myAlerts: "/api/notification/alerts/my-pending",
 } as const;

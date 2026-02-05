@@ -195,6 +195,8 @@ function transformGovernanceAction(action: GovernanceAction): GovernanceAction {
     // Epoch data
     submissionEpoch: action.submissionEpoch ?? 0,
     expiryEpoch: action.expiryEpoch ?? 0,
+    submissionDate: action.submissionDate,
+    expiryDate: action.expiryDate,
 
     // Pass through raw API data for completeness
     drep: action.drep,
@@ -501,7 +503,6 @@ export async function rejectDrep(
 import type {
   NotificationPreferenceInput,
   NotificationPreferenceResponse,
-  PushSubscriptionResponse,
 } from "@/types/auth";
 
 /**
@@ -554,39 +555,48 @@ export async function deleteNotificationPreferences(
 }
 
 /**
- * Register a web push subscription
+ * Get pending deadline alerts for the authenticated DRep
+ * Used by polling hook to show in-app toast notifications
  */
-export async function registerPushSubscription(
-  token: string,
-  subscription: PushSubscription
-): Promise<PushSubscriptionResponse> {
-  return postApi<PushSubscriptionResponse>(
-    API_ENDPOINTS.pushSubscription,
-    { subscription: JSON.stringify(subscription) },
-    token
-  );
-}
-
-/**
- * Unregister web push subscription
- */
-export async function unregisterPushSubscription(
-  token: string
-): Promise<PushSubscriptionResponse> {
-  const response = await fetch(API_ENDPOINTS.pushSubscription, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({}),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || `API Error (${response.status})`);
+export async function getMyDeadlineAlerts(token: string): Promise<{
+  success: boolean;
+  alerts: Array<{
+    id: string;
+    proposalId: string;
+    daysBeforeExpiry: number;
+    drepHasVoted: boolean;
+    drepVote: string | null;
+    proposal: {
+      proposalId: string;
+      title: string;
+      governanceActionType: string | null;
+    };
+  }>;
+  count: number;
+}> {
+  try {
+    return await fetchApiWithAuth<{
+      success: boolean;
+      alerts: Array<{
+        id: string;
+        proposalId: string;
+        daysBeforeExpiry: number;
+        drepHasVoted: boolean;
+        drepVote: string | null;
+        proposal: {
+          proposalId: string;
+          title: string;
+          governanceActionType: string | null;
+        };
+      }>;
+      count: number;
+    }>(API_ENDPOINTS.myAlerts, token);
+  } catch (error) {
+    console.error('Failed to fetch deadline alerts:', error);
+    return {
+      success: false,
+      alerts: [],
+      count: 0,
+    };
   }
-
-  return data;
 }

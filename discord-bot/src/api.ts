@@ -418,6 +418,9 @@ class ApiClient {
         threadId: string;
         guildId: string;
       } | null;
+      notificationPreference: {
+        discordUserId: string | null;
+      } | null;
     }>;
     count: number;
   }> {

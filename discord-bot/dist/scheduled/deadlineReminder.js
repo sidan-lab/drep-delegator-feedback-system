@@ -9,8 +9,8 @@ exports.stopDeadlineReminder = stopDeadlineReminder;
 const discord_js_1 = require("discord.js");
 const config_1 = require("../config");
 const api_1 = require("../api");
-// Polling interval in milliseconds (60 seconds)
-const POLL_INTERVAL = 60 * 1000;
+// Polling interval in milliseconds (10 seconds)
+const POLL_INTERVAL = 10 * 1000;
 let pollingInterval = null;
 let lastLogTime = 0;
 /**
@@ -131,17 +131,14 @@ async function sendChannelReminder(client, alert) {
  */
 async function sendDmReminder(client, alert, discordUserId) {
     try {
-        // Fetch the user
-        const user = await client.users.fetch(discordUserId);
-        if (!user) {
-            console.warn(`[DeadlineReminder] User ${discordUserId} not found`);
-            return false;
-        }
+        // Create DM channel directly without fetching user first
+        // This works as long as the bot and user share at least one server
+        const dmChannel = await client.users.createDM(discordUserId);
         const embed = createDeadlineEmbed(alert);
         embed.setFooter({
             text: `You can manage notification preferences in the DRep dashboard`,
         });
-        await user.send({
+        await dmChannel.send({
             content: alert.drepHasVoted
                 ? `Voting deadline reminder:`
                 : `**Action needed:** You haven't voted on this proposal yet!`,
@@ -152,9 +149,15 @@ async function sendDmReminder(client, alert, discordUserId) {
     }
     catch (error) {
         const discordError = error;
-        // User may have DMs disabled (error code 50007)
+        // Handle specific Discord errors
         if (discordError.code === 50007) {
-            console.warn(`[DeadlineReminder] Cannot send DM to user ${discordUserId} - DMs disabled`);
+            console.warn(`[DeadlineReminder] Cannot send DM to user ${discordUserId} - DMs disabled or blocked`);
+        }
+        else if (discordError.code === 10013) {
+            console.warn(`[DeadlineReminder] Cannot send DM to user ${discordUserId} - User not found or bot doesn't share a server with user`);
+        }
+        else if (discordError.code === 50035) {
+            console.warn(`[DeadlineReminder] Cannot send DM to user ${discordUserId} - Invalid user ID format`);
         }
         else {
             console.error(`[DeadlineReminder] Error sending DM to user ${discordUserId}:`, error);
@@ -196,10 +199,8 @@ async function processPendingAlerts(client) {
                 }
             }
             else if (alert.alertChannel === "DISCORD_DM") {
-                // For DRep alerts, get Discord user ID from notification preferences
-                // For now, we'll use the DRep's configured Discord user ID
-                // This would need to be fetched from the API or stored in the alert
-                const discordUserId = alert.drepRegistration?.discordGuildId;
+                // Get Discord user ID from notification preferences (not from drepRegistration.discordGuildId)
+                const discordUserId = alert.notificationPreference?.discordUserId;
                 if (discordUserId) {
                     success = await sendDmReminder(client, alert, discordUserId);
                     if (!success) {

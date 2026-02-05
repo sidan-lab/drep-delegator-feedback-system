@@ -2,53 +2,65 @@
  * Deadline Alerts Cron Job
  * Periodically checks for proposals approaching voting deadlines
  * Creates DeadlineAlert records for DReps based on their notification preferences
- * Sends web push notifications immediately; Discord alerts are polled by bot
+ * Discord alerts are polled by bot; in-app toasts are polled by frontend
  */
 
 import cron from "node-cron";
 import { prisma } from "../services";
-import {
-  sendPushNotification,
-  createDeadlineAlertPayload,
-  initWebPush,
-  isWebPushEnabled,
-} from "../services/webPush.service";
-import { getCurrentEpoch } from "../services/ingestion/proposal.service";
+import { getCurrentEpochInfo } from "../services/ingestion/proposal.service";
 import { AlertChannel, AlertRecipientType, DeliveryStatus } from "@prisma/client";
+import { getSecondsUntilEpoch } from "../utils/epoch.utils";
 
 const JOB_NAME = "deadline-alerts";
 const DISPLAY_NAME = "Deadline Alerts";
 const LOCK_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-// Cardano epoch length in days
-const EPOCH_LENGTH_DAYS = 5;
-
 /**
- * Calculate days until a proposal expires
+ * Calculate days until a proposal expires.
+ * Uses actual timestamps for accuracy rather than epoch arithmetic.
+ *
+ * Voting ends at the END of epoch (expirationEpoch - 2).
+ * For expirationEpoch N, voting ends at epochToTimestamp(N - 1) - 1 second.
+ *
+ * Example:
+ * - Current time: 2026-02-03 22:00:00 UTC (early in epoch 610)
+ * - Expiration epoch: 613
+ * - Voting ends: 2026-02-13 21:44:50 UTC (END of epoch 611)
+ * - Days remaining: ceil((2026-02-13 21:44:50 - 2026-02-03 22:00:00) / 86400) = 10 days
+ *
+ * @param expirationEpoch - First epoch where voting is NO LONGER valid
+ * @param currentBlockTime - Current Unix timestamp in seconds (from Koios /tip)
+ * @returns Days remaining until expiration (rounded up)
  */
-function getDaysUntilExpiry(expirationEpoch: number, currentEpoch: number): number {
-  const epochsRemaining = expirationEpoch - currentEpoch;
-  return Math.ceil(epochsRemaining * EPOCH_LENGTH_DAYS);
+export function getDaysUntilExpiry(expirationEpoch: number, currentBlockTime: number): number {
+  // Voting ends at END of epoch (expirationEpoch - 2)
+  // = epochToTimestamp(expirationEpoch - 1) - 1 second
+  const secondsRemaining = getSecondsUntilEpoch(expirationEpoch - 1, currentBlockTime) - 1;
+  const daysRemaining = secondsRemaining / 86400; // 86400 = seconds per day
+  return Math.max(0, Math.ceil(daysRemaining));
 }
 
 /**
- * Find the matching alert threshold for given days remaining
- * Returns the threshold if we should send an alert, null otherwise
+ * Find if the current daysRemaining matches any configured alert threshold.
+ * Uses exact matching to ensure multiple alerts fire at different thresholds.
+ *
+ * Example: With alertDays=[7, 3, 1]:
+ * - daysRemaining=7 → returns 7 (fires 7-day alert)
+ * - daysRemaining=5 → returns null (no alert)
+ * - daysRemaining=3 → returns 3 (fires 3-day alert)
+ * - daysRemaining=1 → returns 1 (fires 1-day alert)
+ *
+ * Note: With 5-day Cardano epochs, daysRemaining can skip values.
+ * Choose thresholds that align with epoch boundaries (e.g., [5, 1] or [10, 5, 1])
+ *
+ * @param daysRemaining - Days until proposal voting deadline
+ * @param alertDays - Configured alert thresholds (e.g., [7, 3, 1])
+ * @returns The matching threshold, or null if no exact match
  */
-function findMatchingThreshold(daysRemaining: number, alertDays: number[]): number | null {
-  // Sort thresholds descending
-  const sortedDays = [...alertDays].sort((a, b) => b - a);
-
-  for (const threshold of sortedDays) {
-    // Send alert when days remaining falls within the threshold window
-    // e.g., for 7-day threshold: send when 5 < daysRemaining <= 7 (accounting for epoch boundaries)
-    // For simplicity, we alert when daysRemaining <= threshold
-    if (daysRemaining > 0 && daysRemaining <= threshold) {
-      return threshold;
-    }
-  }
-
-  return null;
+export function findMatchingThreshold(daysRemaining: number, alertDays: number[]): number | null {
+  // Only alert on exact threshold match
+  // This ensures multiple alerts fire at different thresholds (e.g., 7, 3, 1 days)
+  return alertDays.includes(daysRemaining) ? daysRemaining : null;
 }
 
 /**
@@ -69,9 +81,6 @@ export const startDeadlineAlertsJob = () => {
     console.error(`[Cron] Invalid cron schedule: ${schedule}. Deadline alerts job will not run.`);
     return;
   }
-
-  // Initialize web push (will log warning if VAPID not configured)
-  initWebPush();
 
   startDeadlineAlertsJobWithSchedule(schedule);
 };
@@ -140,9 +149,11 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
 
       console.log(`\n[${timestamp}] Starting deadline alerts job...`);
 
-      // Get current epoch from Koios
-      const currentEpoch = await getCurrentEpoch();
-      console.log(`[${timestamp}] Current epoch: ${currentEpoch}`);
+      // Get current epoch and block time from Koios in a single API call
+      const { epochNo: currentEpoch, blockTime: currentBlockTime } = await getCurrentEpochInfo();
+      console.log(
+        `[${timestamp}] Current epoch: ${currentEpoch}, block time: ${new Date(currentBlockTime * 1000).toISOString()}`
+      );
 
       // Get all active proposals with expiration dates
       const activeProposals = await prisma.proposal.findMany({
@@ -178,15 +189,13 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
       console.log(`[${timestamp}] Found ${drepsWithPrefs.length} DReps with notification preferences`);
 
       let alertsCreated = 0;
-      let webPushSent = 0;
-      let webPushFailed = 0;
       let guildPostsUpdated = 0;
 
       // Process each proposal
       for (const proposal of activeProposals) {
         if (!proposal.expirationEpoch) continue;
 
-        const daysRemaining = getDaysUntilExpiry(proposal.expirationEpoch, currentEpoch);
+        const daysRemaining = getDaysUntilExpiry(proposal.expirationEpoch, currentBlockTime);
 
         // Skip if proposal has already expired or too far away (> 30 days)
         if (daysRemaining <= 0 || daysRemaining > 30) continue;
@@ -246,7 +255,7 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
           const channels: AlertChannel[] = [];
           if (prefs.discordChannelEnabled) channels.push(AlertChannel.DISCORD_CHANNEL);
           if (prefs.discordDmEnabled && prefs.discordUserId) channels.push(AlertChannel.DISCORD_DM);
-          if (prefs.webPushEnabled && prefs.pushSubscription) channels.push(AlertChannel.WEB_PUSH);
+          if (prefs.inAppToastEnabled) channels.push(AlertChannel.IN_APP_TOAST);
 
           for (const channel of channels) {
             // Check if this alert already exists (prevent duplicates)
@@ -274,7 +283,7 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
             if (existingAlert) continue;
 
             // Create or update the alert (update if vote changed)
-            const alert = await prisma.deadlineAlert.upsert({
+            await prisma.deadlineAlert.upsert({
               where: {
                 proposalId_drepId_recipientType_recipientId_alertChannel_daysBeforeExpiry: {
                   proposalId: proposal.proposalId,
@@ -307,50 +316,8 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
 
             alertsCreated++;
 
-            // Send web push immediately
-            if (channel === AlertChannel.WEB_PUSH && isWebPushEnabled() && prefs.pushSubscription) {
-              const payload = createDeadlineAlertPayload({
-                proposalTitle: proposal.title,
-                proposalId: proposal.proposalId,
-                daysRemaining,
-                drepHasVoted,
-                proposalType: proposal.governanceActionType || undefined,
-              });
-
-              const result = await sendPushNotification(prefs.pushSubscription, payload);
-
-              if (result.success) {
-                webPushSent++;
-                await prisma.deadlineAlert.update({
-                  where: { id: alert.id },
-                  data: {
-                    deliveryStatus: DeliveryStatus.SENT,
-                    sentAt: new Date(),
-                  },
-                });
-              } else {
-                webPushFailed++;
-                await prisma.deadlineAlert.update({
-                  where: { id: alert.id },
-                  data: {
-                    deliveryStatus: DeliveryStatus.FAILED,
-                    errorMessage: result.error,
-                  },
-                });
-
-                // If subscription expired, clear it from preferences
-                if (result.expired) {
-                  await prisma.notificationPreference.update({
-                    where: { drepId: drep.drepId },
-                    data: {
-                      webPushEnabled: false,
-                      pushSubscription: null,
-                    },
-                  });
-                  console.log(`[${timestamp}] Cleared expired push subscription for DRep ${drep.drepId}`);
-                }
-              }
-            }
+            // For IN_APP_TOAST, alerts stay PENDING until frontend polls and marks as read
+            // For Discord channels, alerts stay PENDING until bot polls and sends messages
           }
         }
       }
@@ -358,8 +325,6 @@ function startDeadlineAlertsJobWithSchedule(schedule: string) {
       console.log(
         `[${timestamp}] Deadline alerts completed:`,
         `\n  - Alerts created: ${alertsCreated}`,
-        `\n  - Web push sent: ${webPushSent}`,
-        `\n  - Web push failed: ${webPushFailed}`,
         `\n  - Guild posts updated with DRep vote: ${guildPostsUpdated}`
       );
 

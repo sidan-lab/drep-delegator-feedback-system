@@ -9,8 +9,8 @@ exports.stopDrepVoteNotifier = stopDrepVoteNotifier;
 const discord_js_1 = require("discord.js");
 const config_1 = require("../config");
 const api_1 = require("../api");
-// Polling interval in milliseconds (30 seconds)
-const POLL_INTERVAL = 30 * 1000;
+// Polling interval in milliseconds (10 seconds)
+const POLL_INTERVAL = 10 * 1000;
 let pollingInterval = null;
 let lastLogTime = 0;
 /**

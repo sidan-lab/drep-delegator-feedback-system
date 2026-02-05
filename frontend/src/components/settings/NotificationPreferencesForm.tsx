@@ -18,25 +18,16 @@ import {
   AlertCircle,
   Check,
   X,
-  Info,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
-  registerPushSubscription,
-  unregisterPushSubscription,
 } from "@/services/api";
 import type { NotificationPreference, NotificationPreferenceInput } from "@/types/auth";
-import {
-  isPushSupported,
-  getPushPermissionState,
-  subscribeToPush,
-  unsubscribeFromPush,
-} from "@/utils/pushNotifications";
 
-// Available alert day options
-const ALERT_DAY_OPTIONS = [1, 2, 3, 5, 7, 14];
+// Available alert day options (1-14 days)
+const ALERT_DAY_OPTIONS = Array.from({ length: 14 }, (_, i) => i + 1); // [1, 2, 3, ..., 14]
 
 export function NotificationPreferencesForm() {
   const { jwtToken, drepRegistration } = useAuth();
@@ -51,14 +42,9 @@ export function NotificationPreferencesForm() {
   // Form state
   const [discordChannelEnabled, setDiscordChannelEnabled] = useState(true);
   const [discordDmEnabled, setDiscordDmEnabled] = useState(false);
-  const [webPushEnabled, setWebPushEnabled] = useState(false);
+  const [inAppToastEnabled, setInAppToastEnabled] = useState(true);
   const [discordUserId, setDiscordUserId] = useState("");
   const [alertDays, setAlertDays] = useState<number[]>([7, 3, 1]);
-
-  // Push notification state
-  const [pushSupported, setPushSupported] = useState(false);
-  const [pushPermission, setPushPermission] = useState<PermissionState>("prompt");
-  const [isSubscribing, setIsSubscribing] = useState(false);
 
   // Load initial preferences
   useEffect(() => {
@@ -74,7 +60,7 @@ export function NotificationPreferencesForm() {
           setPreferences(response.data);
           setDiscordChannelEnabled(response.data.discordChannelEnabled);
           setDiscordDmEnabled(response.data.discordDmEnabled);
-          setWebPushEnabled(response.data.webPushEnabled);
+          setInAppToastEnabled(response.data.inAppToastEnabled ?? true);
           setDiscordUserId(response.data.discordUserId || "");
           setAlertDays(response.data.alertDays);
         }
@@ -89,56 +75,12 @@ export function NotificationPreferencesForm() {
     loadPreferences();
   }, [jwtToken, drepRegistration]);
 
-  // Check push notification support
-  useEffect(() => {
-    const checkPushSupport = async () => {
-      const supported = isPushSupported();
-      setPushSupported(supported);
-
-      if (supported) {
-        const permission = await getPushPermissionState();
-        setPushPermission(permission);
-      }
-    };
-
-    checkPushSupport();
-  }, []);
-
   // Toggle alert day selection
   const toggleAlertDay = (day: number) => {
     setAlertDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => b - a)
     );
   };
-
-  // Handle web push toggle
-  const handleWebPushToggle = useCallback(async () => {
-    if (!jwtToken) return;
-
-    setIsSubscribing(true);
-    setError(null);
-
-    try {
-      if (!webPushEnabled) {
-        // Enable push notifications
-        const subscription = await subscribeToPush();
-        if (subscription) {
-          await registerPushSubscription(jwtToken, subscription);
-          setWebPushEnabled(true);
-          setPushPermission("granted");
-        }
-      } else {
-        // Disable push notifications
-        await unsubscribeFromPush();
-        await unregisterPushSubscription(jwtToken);
-        setWebPushEnabled(false);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update push subscription");
-    } finally {
-      setIsSubscribing(false);
-    }
-  }, [jwtToken, webPushEnabled]);
 
   // Save preferences
   const handleSave = async () => {
@@ -152,7 +94,7 @@ export function NotificationPreferencesForm() {
       const input: NotificationPreferenceInput = {
         discordChannelEnabled,
         discordDmEnabled,
-        webPushEnabled,
+        inAppToastEnabled,
         alertDays,
       };
 
@@ -181,11 +123,11 @@ export function NotificationPreferencesForm() {
     return (
       preferences.discordChannelEnabled !== discordChannelEnabled ||
       preferences.discordDmEnabled !== discordDmEnabled ||
-      preferences.webPushEnabled !== webPushEnabled ||
+      (preferences.inAppToastEnabled ?? true) !== inAppToastEnabled ||
       (preferences.discordUserId || "") !== discordUserId ||
       JSON.stringify(preferences.alertDays.sort()) !== JSON.stringify([...alertDays].sort())
     );
-  }, [preferences, discordChannelEnabled, discordDmEnabled, webPushEnabled, discordUserId, alertDays]);
+  }, [preferences, discordChannelEnabled, discordDmEnabled, inAppToastEnabled, discordUserId, alertDays]);
 
   if (!drepRegistration) {
     return (
@@ -349,49 +291,25 @@ export function NotificationPreferencesForm() {
             )}
           </div>
 
-          {/* Web Push */}
+          {/* In-App Toast Notifications */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-3">
               <Bell className="w-5 h-5 text-primary" />
               <div>
-                <p className="font-medium">Web Push Notifications</p>
+                <p className="font-medium">In-App Notifications</p>
                 <p className="text-sm text-muted-foreground">
-                  Receive browser notifications on this device
+                  Receive toast notifications while browsing the site
                 </p>
               </div>
             </div>
-            {pushSupported ? (
-              <Button
-                variant={webPushEnabled ? "default" : "outline"}
-                size="sm"
-                onClick={handleWebPushToggle}
-                disabled={isSubscribing || pushPermission === "denied"}
-              >
-                {isSubscribing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : webPushEnabled ? (
-                  "Enabled"
-                ) : (
-                  "Enable"
-                )}
-              </Button>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground">
-                Not Supported
-              </Badge>
-            )}
+            <Button
+              variant={inAppToastEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => setInAppToastEnabled(!inAppToastEnabled)}
+            >
+              {inAppToastEnabled ? "Enabled" : "Disabled"}
+            </Button>
           </div>
-
-          {/* Push permission denied warning */}
-          {pushSupported && pushPermission === "denied" && (
-            <div className="flex items-start gap-2 text-sm text-yellow-500 bg-yellow-500/10 p-3 rounded-md ml-8">
-              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <p>
-                Push notifications are blocked. Please enable them in your browser settings to
-                receive web push alerts.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Save Button */}

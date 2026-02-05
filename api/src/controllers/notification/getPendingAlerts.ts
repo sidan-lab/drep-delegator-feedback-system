@@ -49,10 +49,10 @@ export const getPendingAlerts = async (req: Request, res: Response) => {
       ],
     });
 
-    // Enrich with proposal and DRep data
+    // Enrich with proposal, DRep, and notification preference data
     const enrichedAlerts = await Promise.all(
       alerts.map(async (alert) => {
-        const [proposal, drepRegistration, guildPost] = await Promise.all([
+        const [proposal, drepRegistration, guildPost, notificationPreference] = await Promise.all([
           prisma.proposal.findUnique({
             where: { proposalId: alert.proposalId },
             select: {
@@ -81,6 +81,13 @@ export const getPendingAlerts = async (req: Request, res: Response) => {
               guildId: true,
             },
           }),
+          // Fetch Discord User ID from notification preferences for DM alerts
+          prisma.notificationPreference.findUnique({
+            where: { drepId: alert.drepId },
+            select: {
+              discordUserId: true,
+            },
+          }),
         ]);
 
         return {
@@ -88,6 +95,7 @@ export const getPendingAlerts = async (req: Request, res: Response) => {
           proposal,
           drepRegistration,
           guildPost,
+          notificationPreference,
         };
       })
     );

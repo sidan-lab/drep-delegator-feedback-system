@@ -19,6 +19,7 @@ import {
   VotingThreshold,
   VotingStatus,
 } from "../models";
+import { epochToTimestamp } from "../utils/epoch.utils";
 
 type VoteWithRelations = OnchainVote & {
   drep: Drep | null;
@@ -758,6 +759,20 @@ export const mapProposalToGovernanceAction = (
   // Determine if proposal is passing overall
   const passing = isProposalPassing(votingStatus);
 
+  // Compute ISO date strings from epochs
+  const submissionDate =
+    proposal.submissionEpoch != null
+      ? new Date(epochToTimestamp(proposal.submissionEpoch) * 1000).toISOString()
+      : undefined;
+
+  // Voting ends at the END of epoch (expirationEpoch - 2)
+  // For expirationEpoch N, voting ends at: epochToTimestamp(N - 1) - 1 second
+  // Example: expirationEpoch 613 → voting ends at END of epoch 611 (2026-02-13 21:44:50 UTC)
+  const expiryDate =
+    proposal.expirationEpoch != null
+      ? new Date((epochToTimestamp(proposal.expirationEpoch - 1) - 1) * 1000).toISOString()
+      : undefined;
+
   return {
     proposalId: buildProposalIdentifier(proposal),
     hash,
@@ -775,6 +790,8 @@ export const mapProposalToGovernanceAction = (
     totalAbstain: voteAggregation.totals.abstain,
     submissionEpoch: proposal.submissionEpoch ?? 0,
     expiryEpoch: proposal.expirationEpoch ?? 0,
+    submissionDate,
+    expiryDate,
     threshold,
     votingStatus,
     passing,

@@ -29,8 +29,7 @@
     "node-cron": "^4.2.1",
     "p-map": "^5.5.0",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
-    "web-push": "^3.6.7"
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/body-parser": "^1.19.6",

@@ -20,6 +20,7 @@ const client = new discord_js_1.Client({
         discord_js_1.GatewayIntentBits.GuildMessages,
         discord_js_1.GatewayIntentBits.MessageContent,
         discord_js_1.GatewayIntentBits.DirectMessages, // For sending DM notifications
+        discord_js_1.GatewayIntentBits.GuildMembers, // Required to fetch user info for DMs
     ],
     partials: [
         discord_js_1.Partials.Message,

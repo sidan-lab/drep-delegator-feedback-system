@@ -90,71 +90,23 @@ router.post("/preferences", jwtAuth, notificationController.updatePreferences);
  */
 router.delete("/preferences", jwtAuth, notificationController.deletePreferences);
 
-// ============================================
-// Web Push Subscription (JWT Auth)
-// ============================================
-
 /**
  * @openapi
- * /notification/push-subscription:
- *   post:
- *     summary: Register web push subscription
- *     description: Register a web push subscription for the authenticated DRep
+ * /notification/alerts/my-pending:
+ *   get:
+ *     summary: Get my pending deadline alerts
+ *     description: Get pending IN_APP_TOAST alerts for the authenticated DRep (used by polling hook)
  *     tags:
- *       - Web Push
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - subscription
- *             properties:
- *               subscription:
- *                 type: object
- *                 description: PushSubscription object from browser
- *                 properties:
- *                   endpoint:
- *                     type: string
- *                   keys:
- *                     type: object
- *                     properties:
- *                       p256dh:
- *                         type: string
- *                       auth:
- *                         type: string
- *     responses:
- *       200:
- *         description: Push subscription registered
- *       400:
- *         description: Invalid subscription
- *       403:
- *         description: DRep registration required or not approved
- */
-router.post("/push-subscription", jwtAuth, notificationController.registerPushSubscription);
-
-/**
- * @openapi
- * /notification/push-subscription:
- *   delete:
- *     summary: Unregister web push subscription
- *     description: Remove the web push subscription for the authenticated DRep
- *     tags:
- *       - Web Push
+ *       - Notification Preferences
  *     security:
  *       - BearerAuth: []
  *     responses:
  *       200:
- *         description: Push subscription removed
- *       404:
- *         description: Preferences not found
+ *         description: Pending alerts retrieved successfully
  *       403:
  *         description: DRep registration required
  */
-router.delete("/push-subscription", jwtAuth, notificationController.unregisterPushSubscription);
+router.get("/alerts/my-pending", jwtAuth, notificationController.getMyAlerts);
 
 // ============================================
 // Alert Management (API Key Auth - for Discord bot/cron)

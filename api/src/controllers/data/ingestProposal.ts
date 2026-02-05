@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { ingestProposal } from "../../services/ingestion/proposal.service";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * POST /data/proposal/:proposal_hash
@@ -13,7 +14,7 @@ import { ingestProposal } from "../../services/ingestion/proposal.service";
  */
 export const postIngestProposal = async (req: Request, res: Response) => {
   try {
-    const { proposal_hash } = req.params;
+    const proposal_hash = getStringParam(req.params.proposal_hash);
 
     if (!proposal_hash) {
       return res.status(400).json({
@@ -48,7 +49,7 @@ export const postIngestProposal = async (req: Request, res: Response) => {
     res.status(statusCode).json({
       error: "Failed to ingest proposal",
       message: errorMessage,
-      proposal_hash: req.params.proposal_hash,
+      proposal_hash: getStringParam(req.params.proposal_hash),
     });
   }
 };

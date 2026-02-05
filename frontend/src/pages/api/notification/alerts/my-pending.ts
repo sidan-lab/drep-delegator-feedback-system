@@ -4,8 +4,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const allowedMethods = ["POST", "DELETE"];
-  if (!allowedMethods.includes(req.method || "")) {
+  if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
@@ -21,23 +20,25 @@ export default async function handler(
       });
     }
 
-    const response = await fetch(`${backendApiUrl}/notification/push-subscription`, {
-      method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-      body: JSON.stringify(req.body),
-    });
+    const response = await fetch(
+      `${backendApiUrl}/notification/alerts/my-pending`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+      }
+    );
 
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (error) {
-    console.error("Push subscription error:", error);
+    console.error("Get my alerts error:", error);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
-      message: "Failed to process push subscription",
+      message: "Failed to fetch deadline alerts",
     });
   }
 }
