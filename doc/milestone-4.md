@@ -8,14 +8,14 @@ Push via Discord DM or web notifcation
 
 Suggested feature 2: DRep Draft Rationale Publishing
 
-Currnet Gap: DReps only publish their voting decision after voting on-chain. There is no mechanism for DReps to share their intended vote before finalizing, missing the opportunity for delegator input before the decision is locked in.
+Current Gap: DReps only publish their voting decision after voting on-chain. There is no mechanism for DReps to share their intended vote before finalizing, missing the opportunity for delegator input before the decision is locked in.
 
 Enhancement suggested:
-Add "Draft Vote Intent" feature when Dreps can publish their preliminary position
+Add "Draft Vote Intent" feature when DReps can publish their preliminary position
 DReps can see sentiment shift based on their stated intent
 Convert draft to final vote when DRep submits on-chain
 
 Value:
-Creates genunie two-way dialogue (not just post-vote reporting)
+Creates genuine two-way dialogue (not just post-vote reporting)
 Gives delegators meaningful influence before decisions are final
 Increases accountability and transparency in the governance process

@@ -156,6 +156,8 @@ declare class ApiClient {
             drepRationaleUrl: string | null;
             drepVoteTxHash: string | null;
             drepVotedAt: string | null;
+            isDraft: boolean;
+            draftPublishedAt: string | null;
         }>;
         count: number;
     }>;

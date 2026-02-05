@@ -30,6 +30,8 @@ async function updateThreadWithDrepVote(
     drepRationaleUrl: string | null;
     drepVoteTxHash: string | null;
     drepVotedAt: string | null;
+    isDraft: boolean;
+    draftPublishedAt: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -65,10 +67,10 @@ async function updateThreadWithDrepVote(
     // Create updated embed with DRep vote section
     const updatedEmbed = EmbedBuilder.from(existingEmbed);
 
-    // Remove any existing DRep Vote field (for vote changes)
+    // Remove any existing DRep Vote field (for vote changes or draft-to-final transitions)
     const existingFields = updatedEmbed.data.fields || [];
     const filteredFields = existingFields.filter(
-      (field) => field.name !== "🗳️ DRep Vote"
+      (field) => field.name !== "🗳️ DRep Vote" && field.name !== "📝 Draft Vote Intent"
     );
     updatedEmbed.setFields(filteredFields);
 
@@ -80,23 +82,36 @@ async function updateThreadWithDrepVote(
           ? "❌"
           : "❓";
 
+    // Different field name for draft vs final
+    const fieldName = notification.isDraft ? "📝 Draft Vote Intent" : "🗳️ DRep Vote";
+
     let voteText = `${voteEmoji} **${notification.drepVote}**`;
 
     if (notification.drepRationaleUrl) {
       voteText += `\n📄 [View Rationale](${notification.drepRationaleUrl})`;
     }
 
-    if (notification.drepVotedAt) {
+    // Show vote date based on whether it's draft or final
+    if (notification.isDraft && notification.draftPublishedAt) {
+      const publishedDate = new Date(notification.draftPublishedAt);
+      voteText += `\n🕐 Published ${publishedDate.toLocaleDateString()}`;
+    } else if (!notification.isDraft && notification.drepVotedAt) {
       const votedDate = new Date(notification.drepVotedAt);
-      voteText += `\n🕐 ${votedDate.toLocaleDateString()}`;
+      voteText += `\n🕐 Voted ${votedDate.toLocaleDateString()}`;
     }
 
-    if (notification.drepVoteTxHash) {
+    // Only show transaction link for final votes (not drafts)
+    if (!notification.isDraft && notification.drepVoteTxHash) {
       voteText += `\n🔗 [View on AdaStat](https://adastat.net/transactions/${notification.drepVoteTxHash})`;
     }
 
+    // Add warning text for draft votes
+    if (notification.isDraft) {
+      voteText += `\n\n⚠️ *This is a preliminary position. The DRep may change their vote based on community feedback.*`;
+    }
+
     updatedEmbed.addFields({
-      name: "🗳️ DRep Vote",
+      name: fieldName,
       value: voteText,
       inline: false,
     });

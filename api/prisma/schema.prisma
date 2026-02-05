@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,60 +7,293 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Core types
-
 model User {
-  id               String    @id @default(uuid())
-  // discordId        String    @unique
-  walletAddress    String?   @unique
+  id               String            @id @default(uuid())
+  walletAddress    String?           @unique
   stakeKeyLovelace Float?
   jwt              String?
-  createdAt        DateTime? @default(now())
-  updatedAt        DateTime? @updatedAt
+  createdAt        DateTime?         @default(now())
+  updatedAt        DateTime?         @updatedAt
   drepRegistration DrepRegistration?
-  // spoDelegation    Boolean?
-  // drepDelegation   Boolean?
-  // offchainVotes          OffchainVote[]
 }
 
-model Drep { // get drep list from https://api.koios.rest/api/v1/drep_list
-  // get drep info from https://api.koios.rest/api/v1/drep_info
-  id              String        @id @default(uuid())
-  drepId          String        @unique // drep_id value from drep_info api response (CIP-129 format)
-  name            String?       // meta_json.body.givenName from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
-  paymentAddress  String?       // meta_json.body.paymentAddress from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
-  iconUrl        String?       // meta_json.body.image.contentUrl from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
-  doNotList      Boolean?      // meta_json.body.doNotList from https://api.koios.rest/api/v1/drep_updates?_drep_id=<drep_id>
-  votingPower     BigInt   // Stored in lovelace. Get from https://api.koios.rest/api/v1/drep_voting_power_history?_epoch_no=320&_drep_id=drep17l6sywnwqu9aedd6aumev42w39ln5zfl9nw7j4ak6u8swyrwvz3 from amount value in response
-  createdAt       DateTime?     @default(now())
-  updatedAt       DateTime?     @updatedAt
-  onchainVotes    OnchainVote[]
+model Drep {
+  id             String        @id @default(uuid())
+  drepId         String        @unique
+  name           String?
+  paymentAddress String?
+  iconUrl        String?
+  doNotList      Boolean?
+  votingPower    BigInt
+  createdAt      DateTime?     @default(now())
+  updatedAt      DateTime?     @updatedAt
+  onchainVotes   OnchainVote[]
 }
 
-model SPO { // get spo list from https://api.koios.rest/api/v1/pool_list
-  // get spo info from https://api.koios.rest/api/v1/pool_info
+model SPO {
   id           String        @id @default(uuid())
-  poolId       String        @unique  // pool_id_bech32 value from pool_info api response
-  poolName     String?   // go to meta_url from pool_info api response and use the name value
-  ticker       String?  // ticker value from pool_info api response
-  iconUrl      String?  // go to meta_url from pool_info api response and go to the url specified under the extended field and look for url_png_icon_64x64 field
-  votingPower  BigInt  // Stored in lovelace. Get from https://api.koios.rest/api/v1/pool_voting_power_history?_epoch_no=320&_pool_bech32=pool155efqn9xpcf73pphkk88cmlkdwx4ulkg606tne970qswczg3asc
+  poolId       String        @unique
+  poolName     String?
+  ticker       String?
+  iconUrl      String?
+  votingPower  BigInt
   createdAt    DateTime?     @default(now())
   updatedAt    DateTime?     @updatedAt
   onchainVotes OnchainVote[]
 }
 
-model CC { // get cc list from https://api.koios.rest/api/v1/committee_info
+model CC {
   id             String        @id @default(uuid())
-  ccId           String        @unique // get members.cc_hot_id value from committee_info api response
-  memberName     String?  // go to https://api.koios.rest/api/v1/committee_votes?_cc_hot_id=cc_hot1qf5tkz6zwcpplq3kgpt2486d8za943vmymqkdjl249qgw3s2y5r9y and go to meta_url value to get the name value from authors[].name value
-  hotCredential  String?  // get members.cc_hot_id value from committee_info api response
-  coldCredential String?  // get members.cc_cold_id value from committee_info api response
-  status         String?  // get members.expiration_epoch value from committee_info api response and compare with current epoch to get status
-  // get epoch_no value from https://api.koios.rest/api/v1/tip to get current epoch
+  ccId           String        @unique
+  memberName     String?
+  hotCredential  String?
+  coldCredential String?
+  status         String?
   createdAt      DateTime?     @default(now())
   updatedAt      DateTime?     @updatedAt
   onchainVotes   OnchainVote[]
+}
+
+model SyncStatus {
+  jobName        String    @id
+  displayName    String?
+  isRunning      Boolean   @default(false)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  lastResult     String?
+  errorMessage   String?
+  itemsProcessed Int?
+  lockedBy       String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Proposal {
+  id                              Int             @id @default(autoincrement())
+  proposalId                      String          @unique
+  txHash                          String
+  certIndex                       String
+  title                           String
+  description                     String?
+  rationale                       String?
+  governanceActionType            GovernanceType?
+  status                          ProposalStatus  @default(ACTIVE)
+  submissionEpoch                 Int?
+  ratifiedEpoch                   Int?
+  enactedEpoch                    Int?
+  droppedEpoch                    Int?
+  expiredEpoch                    Int?
+  expirationEpoch                 Int?
+  drepTotalVotePower              BigInt?
+  drepActiveYesVotePower          BigInt?
+  drepActiveNoVotePower           BigInt?
+  drepActiveAbstainVotePower      BigInt?
+  drepAlwaysAbstainVotePower      BigInt?
+  drepAlwaysNoConfidenceVotePower BigInt?
+  drepInactiveVotePower           BigInt?
+  spoTotalVotePower               BigInt?
+  spoActiveYesVotePower           BigInt?
+  spoActiveNoVotePower            BigInt?
+  spoActiveAbstainVotePower       BigInt?
+  spoAlwaysAbstainVotePower       BigInt?
+  spoAlwaysNoConfidenceVotePower  BigInt?
+  metadata                        String?
+  createdAt                       DateTime?       @default(now())
+  updatedAt                       DateTime?       @updatedAt
+  onchainVotes                    OnchainVote[]
+
+  @@unique([txHash, certIndex])
+}
+
+model OnchainVote {
+  id          String    @id @default(uuid())
+  txHash      String
+  proposalId  String
+  vote        VoteType?
+  voterType   VoterType
+  votingPower BigInt?
+  anchorUrl   String?
+  anchorHash  String?
+  votedAt     DateTime? @default(now())
+  createdAt   DateTime? @default(now())
+  updatedAt   DateTime? @updatedAt
+  drepId      String?
+  spoId       String?
+  ccId        String?
+  cc          CC?       @relation(fields: [ccId], references: [ccId])
+  drep        Drep?     @relation(fields: [drepId], references: [drepId])
+  proposal    Proposal  @relation(fields: [proposalId], references: [proposalId])
+  spo         SPO?      @relation(fields: [spoId], references: [poolId])
+
+  @@unique([txHash, proposalId, voterType, drepId, spoId, ccId])
+}
+
+model NCL {
+  id        String   @id @default(uuid())
+  year      Int      @unique
+  epoch     Int
+  current   BigInt   @default(0)
+  limit     BigInt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DrepRegistration {
+  id                     String                  @id @default(uuid())
+  drepId                 String                  @unique
+  drepName               String?
+  contactEmail           String?
+  userId                 String?                 @unique
+  status                 RegistrationStatus      @default(PENDING)
+  rationale              String?
+  apiKey                 String?                 @unique
+  reviewedAt             DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  discordGuildId         String?
+  guilds                 DiscordGuild[]
+  user                   User?                   @relation(fields: [userId], references: [id])
+  notificationPreference NotificationPreference?
+  verifiedDelegators     VerifiedDelegator[]
+
+  @@index([apiKey])
+  @@index([status])
+  @@index([userId])
+  @@index([discordGuildId])
+}
+
+model VerifiedDelegator {
+  id                 String            @id @default(uuid())
+  drepId             String
+  discordUserId      String
+  discordUsername    String
+  stakeAddress       String
+  liveStake          BigInt?
+  isActive           Boolean           @default(true)
+  deactivatedAt      DateTime?
+  deactivationReason String?
+  lastVerifiedAt     DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  reactions          DiscordReaction[]
+  drepRegistration   DrepRegistration  @relation(fields: [drepId], references: [drepId])
+
+  @@unique([drepId, discordUserId])
+  @@unique([drepId, stakeAddress])
+  @@index([drepId])
+  @@index([discordUserId])
+  @@index([isActive])
+}
+
+model DiscordGuild {
+  id                  String              @id @default(uuid())
+  guildId             String
+  guildName           String
+  drepId              String
+  governanceChannelId String?
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  drepRegistration    DrepRegistration    @relation(fields: [drepId], references: [drepId])
+  reactions           DiscordReaction[]
+  proposalPosts       GuildProposalPost[]
+
+  @@unique([guildId, drepId])
+  @@index([drepId])
+}
+
+model DiscordReaction {
+  id              String            @id @default(uuid())
+  proposalId      String
+  drepId          String
+  guildId         String
+  channelId       String
+  discordUserId   String
+  discordUsername String
+  sentiment       SentimentType
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  comment         String?
+  messageId       String?
+  delegator       VerifiedDelegator @relation(fields: [drepId, discordUserId], references: [drepId, discordUserId])
+  guild           DiscordGuild      @relation(fields: [guildId, drepId], references: [guildId, drepId])
+
+  @@unique([proposalId, drepId, guildId, discordUserId])
+  @@index([proposalId])
+  @@index([drepId])
+  @@index([guildId])
+}
+
+model GuildProposalPost {
+  id                String       @id @default(uuid())
+  guildId           String
+  drepId            String
+  proposalId        String
+  threadId          String
+  postedAt          DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  abstainCount      Int          @default(0)
+  commentCount      Int          @default(0)
+  noCount           Int          @default(0)
+  yesCount          Int          @default(0)
+  discordNotifiedAt DateTime?
+  drepRationaleUrl  String?
+  drepVote          VoteType?
+  drepVoteTxHash    String?
+  drepVotedAt       DateTime?
+
+  // Draft vote state (for pre-publishing vote intent before on-chain submission)
+  isDraft           Boolean      @default(false) // true if this is a draft vote intent
+  draftPublishedAt  DateTime?    // When the draft was published
+
+  guild             DiscordGuild @relation(fields: [guildId, drepId], references: [guildId, drepId])
+
+  @@unique([guildId, drepId, proposalId])
+  @@unique([proposalId, drepId])
+  @@index([proposalId])
+  @@index([threadId])
+  @@index([drepId])
+  @@index([isDraft])
+}
+
+model NotificationPreference {
+  id                    String           @id @default(uuid())
+  drepId                String           @unique
+  discordUserId         String?
+  discordChannelEnabled Boolean          @default(true)
+  discordDmEnabled      Boolean          @default(false)
+  alertDays             Int[]            @default([7, 3, 1])
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  inAppToastEnabled     Boolean          @default(true)
+  drepRegistration      DrepRegistration @relation(fields: [drepId], references: [drepId])
+
+  @@index([discordUserId])
+  @@index([inAppToastEnabled])
+}
+
+model DeadlineAlert {
+  id               String             @id @default(uuid())
+  proposalId       String
+  drepId           String
+  recipientType    AlertRecipientType
+  recipientId      String
+  alertChannel     AlertChannel
+  daysBeforeExpiry Int
+  drepHasVoted     Boolean            @default(false)
+  sentAt           DateTime?
+  deliveryStatus   DeliveryStatus     @default(PENDING)
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  drepVote         VoteType?
+
+  @@unique([proposalId, drepId, recipientType, recipientId, alertChannel, daysBeforeExpiry])
+  @@index([proposalId])
+  @@index([drepId])
+  @@index([deliveryStatus])
+  @@index([createdAt])
 }
 
 enum VoteType {
@@ -92,111 +319,12 @@ enum GovernanceType {
 }
 
 enum ProposalStatus {
-  ACTIVE    // Governance action submitted onchain and voting is ongoing
-  RATIFIED  // Passed voting, waiting for enactment
-  ENACTED   // Enacted/applied to the chain
-  EXPIRED   // Voting period ended without ratification/approval
-  CLOSED    // Expired INFO action (only applicable to INFO governance action type - they don't get ratified/enacted)
+  ACTIVE
+  RATIFIED
+  ENACTED
+  EXPIRED
+  CLOSED
 }
-
-// Sync Status - Tracks sync job execution and provides distributed locking
-
-model SyncStatus {
-  jobName        String    @id              // "proposal-sync", "voter-power-sync"
-  displayName    String?                    // "Proposal Sync", "Voter Power Sync"
-  isRunning      Boolean   @default(false)
-  startedAt      DateTime?
-  completedAt    DateTime?
-  lastResult     String?                    // "success", "failed", "skipped"
-  errorMessage   String?                    // Store error message if failed
-  itemsProcessed Int?                       // How many items were synced
-  lockedBy       String?                    // Container/instance ID
-  expiresAt      DateTime?                  // Auto-unlock if crashed
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-}
-
-// Viewer Types
-
-model Proposal { // get proposals from https://api.koios.rest/api/v1/proposal_list
-  id                   Int             @id @default(autoincrement()) 
-  proposalId           String          @unique  // proposal_id value from proposal_list api response
-  txHash               String  // proposal_tx_hash value from proposal_list api response
-  certIndex            String  // proposal_index value from proposal_list api response
-  title                String  // meta_json.body.title value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.title value
-  description          String?  // meta_json.body.abstract value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.abstract value
-  rationale            String?  // meta_json.body.rationale value from proposal_list api response if its not there, go to meta_url from proposal_list api response and use the body.rationale value
-  governanceActionType GovernanceType?  // proposal_type value from proposal_list api response
-  status               ProposalStatus  @default(ACTIVE) // derived from epoch fields below
-  submissionEpoch      Int?  // proposed_epoch value from proposal_list api response
-  ratifiedEpoch        Int?  // ratified_epoch value from proposal_list api response (can be null)
-  enactedEpoch         Int?  // enacted_epoch value from proposal_list api response (can be null)
-  droppedEpoch         Int?  // dropped_epoch value from proposal_list api response (can be null)
-  expiredEpoch         Int?  // expired_epoch value from proposal_list api response (can be null)
-  expirationEpoch      Int?  // First epoch where voting is NO LONGER valid (voting ends at END of epoch N-2, i.e. epochToTimestamp(N-1) - 1 second)
-  // All voting power fields stored in lovelace (1 ADA = 1,000,000 lovelace). Convert to ADA in frontend.
-  drepTotalVotePower        BigInt?  // amount from https://api.koios.rest/#get-/drep_epoch_summary
-  drepActiveYesVotePower     BigInt?  // drep_active_yes_vote_power value from proposal_voting_summary api response
-  drepActiveNoVotePower      BigInt?  // drep_active_no_vote_power value from proposal_voting_summary api response
-  drepActiveAbstainVotePower BigInt?  // drep_active_abstain_vote_power value from proposal_voting_summary api response
-  drepAlwaysAbstainVotePower BigInt?  // drep_always_abstain_vote_power value from proposal_voting_summary api response
-  drepAlwaysNoConfidenceVotePower BigInt?  // drep_always_no_confidence_vote_power value from proposal_voting_summary api response
-  drepInactiveVotePower        BigInt?  // get the full list of dreps using https://api.koios.rest/#get-/drep_list and check whether the drep has either vote on any proposals (from database or koios api?) or update their Drep certificate (from https://api.koios.rest/#get-/drep_updates) in the past 20 epochs from the (proposal expiration/ latest epoch (if it is an active proposal) - 1 epoch), If not, consider them inactive and aggregate their voting power from https://api.koios.rest/#get-/drep_voting_power_history
-  spoTotalVotePower        BigInt?  // Aggregated amount from https://api.koios.rest/#get-/pool_voting_power_history
-  spoActiveYesVotePower     BigInt?  // pool_active_yes_vote_power value from proposal_voting_summary api response
-  spoActiveNoVotePower      BigInt?  // pool_active_no_vote_power value from proposal_voting_summary api response
-  spoActiveAbstainVotePower BigInt?  // pool_active_abstain_vote_power value from proposal_voting_summary api response
-  spoAlwaysAbstainVotePower BigInt?  // pool_passive_always_abstain_vote_power value from proposal_voting_summary api response
-  spoAlwaysNoConfidenceVotePower BigInt?  // pool_passive_always_no_confidence_vote_power value from proposal_voting_summary api response
-  metadata             String?  // meta_json value from proposal_list api response, if not there, go to meta_url from proposal_list api response and use the response body as metadata
-  createdAt            DateTime?       @default(now())
-  updatedAt            DateTime?       @updatedAt
-  onchainVotes         OnchainVote[]
-  // offchainVotes   OffchainVote[]
-
-  @@unique([txHash, certIndex])
-}
-
-model OnchainVote { // get votes from https://api.koios.rest/api/v1/vote_list
-  id             String    @id @default(uuid())
-  txHash         String // vote_tx_hash value from vote_list api response
-  proposal       Proposal  @relation(fields: [proposalId], references: [proposalId])
-  proposalId     String  // proposal_id value from vote_list api response (Cardano governance action ID)
-  vote           VoteType? // vote value from vote_list api response
-  voterType      VoterType // proposal_type value from vote_list api response
-  // Stored in lovelace. Get from pool_voting_power_history or drep_voting_power_history API based on voterType
-  votingPower    BigInt?
-  anchorUrl      String?  // meta_url value from vote_list api response
-  anchorHash     String?  // meta_hash value from vote_list api response
-  votedAt        DateTime? @default(now())  // get block_time value from vote_list api response and convert to DateTime
-  createdAt      DateTime? @default(now())  
-  updatedAt      DateTime? @updatedAt
-  drep           Drep?     @relation(fields: [drepId], references: [drepId])
-  drepId         String?  // drep_id in CIP-129 format from vote_list api response
-  spo            SPO?      @relation(fields: [spoId], references: [poolId])
-  spoId          String?  // pool_id_bech32 from vote_list api response
-  cc             CC?       @relation(fields: [ccId], references: [ccId])
-  ccId           String?  // cc_hot_id from vote_list api response
-
-  @@unique([txHash, proposalId, voterType, drepId, spoId, ccId])
-}
-
-// Net Change Limit (NCL) tracking for treasury withdrawals
-// The "current" value is the aggregate of all ratified/enacted treasury withdrawal amounts for that year
-// The "limit" value is manually set by the database administrator
-// All values stored in lovelace (1 ADA = 1,000,000 lovelace)
-
-model NCL {
-  id        String    @id @default(uuid())
-  year      Int       @unique // Calendar year (e.g., 2025)
-  epoch     Int       // Epoch when this NCL record was last updated
-  current   BigInt    @default(0) // Current aggregate treasury withdrawals (in lovelace)
-  limit     BigInt    // Net change limit set by administrator (in lovelace)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-// Delegators Engagement Types - Discord Community Sentiment
 
 enum SentimentType {
   YES
@@ -204,14 +332,11 @@ enum SentimentType {
   ABSTAIN
 }
 
-// DRep Registration with admin approval
 enum RegistrationStatus {
   PENDING
   APPROVED
   REJECTED
 }
-
-// Notification System Types
 
 enum AlertRecipientType {
   DREP
@@ -228,190 +353,4 @@ enum DeliveryStatus {
   PENDING
   SENT
   FAILED
-}
-
-model DrepRegistration {
-  id             String             @id @default(uuid())
-  drepId         String             @unique // DRep ID (CIP-129 format)
-  drepName       String?            // Display name
-  contactEmail   String?            // Contact email for communication
-  discordGuildId String?            // Authorized Discord server ID for this DRep
-  userId         String?            @unique // Link to User for JWT authentication
-  status         RegistrationStatus @default(PENDING)
-  rationale      String?            // Reason for approval or rejection
-  apiKey         String?            @unique // Generated when APPROVED, used for per-DRep API authentication
-  reviewedAt     DateTime?          // When admin last reviewed (approved/rejected)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-
-  user                   User?               @relation(fields: [userId], references: [id])
-  guilds                 DiscordGuild[]
-  verifiedDelegators     VerifiedDelegator[]
-  notificationPreference NotificationPreference?
-
-  @@index([apiKey])
-  @@index([status])
-  @@index([userId])
-  @@index([discordGuildId])
-}
-
-// Verified delegators (managed by DRep)
-model VerifiedDelegator {
-  id                 String    @id @default(uuid())
-  drepId             String    // Which DRep verified this user
-  discordUserId      String    // Discord user ID
-  discordUsername    String    // Discord username (for display)
-  stakeAddress       String    // Cardano stake address (stake1...)
-  liveStake          BigInt?   // Last known stake (in lovelace)
-  isActive           Boolean   @default(true) // DRep can deactivate
-  deactivatedAt      DateTime? // When eliminated
-  deactivationReason String?   // Why (e.g., "Changed delegation")
-  lastVerifiedAt     DateTime  @default(now()) // Last time delegation was confirmed
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  drepRegistration       DrepRegistration @relation(fields: [drepId], references: [drepId])
-  reactions              DiscordReaction[]
-
-  @@unique([drepId, discordUserId])
-  @@unique([drepId, stakeAddress])
-  @@index([drepId])
-  @@index([discordUserId])
-  @@index([isActive])
-}
-
-// Discord guilds (servers) registered to collect sentiment for a DRep
-model DiscordGuild {
-  id                   String   @id @default(uuid())
-  guildId              String   // Discord server ID
-  guildName            String   // Discord server name
-  drepId               String   // DRep ID this guild collects sentiment for (CIP-129 format)
-  governanceChannelId  String?  // Optional specific channel for governance discussions
-  isActive             Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  drepRegistration     DrepRegistration @relation(fields: [drepId], references: [drepId])
-  reactions            DiscordReaction[]
-  proposalPosts        GuildProposalPost[]
-
-  @@unique([guildId, drepId])
-  @@index([drepId])
-}
-
-// Sentiment reactions from Discord users (includes optional comments)
-model DiscordReaction {
-  id               String        @id @default(uuid())
-  proposalId       String        // Cardano governance action ID
-  drepId           String        // DRep ID receiving feedback
-  guildId          String        // Discord server ID
-  channelId        String        // Discord channel ID
-  discordUserId    String        // Discord user ID
-  discordUsername  String        // Discord username (for display)
-  sentiment        SentimentType // YES, NO, ABSTAIN
-  comment          String?       // Optional comment text from delegator
-  messageId        String?       // Discord message ID (if comment was added)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  guild            DiscordGuild  @relation(fields: [guildId, drepId], references: [guildId, drepId])
-  delegator        VerifiedDelegator? @relation(fields: [drepId, discordUserId], references: [drepId, discordUserId])
-
-  // One reaction per user per proposal per DRep guild
-  @@unique([proposalId, drepId, guildId, discordUserId])
-  @@index([proposalId])
-  @@index([drepId])
-  @@index([guildId])
-}
-
-// Track forum threads posted to Discord guilds for proposals
-// Also stores aggregated sentiment counts (assuming one guild per DRep)
-model GuildProposalPost {
-  id            String   @id @default(uuid())
-  guildId       String   // Discord server ID
-  drepId        String   // DRep ID (CIP-129 format)
-  proposalId    String   // Cardano governance action ID
-  threadId      String   // Discord forum thread ID
-  // Aggregated sentiment counts (from delegator reactions)
-  yesCount      Int      @default(0)
-  noCount       Int      @default(0)
-  abstainCount  Int      @default(0)
-  commentCount  Int      @default(0)
-  // DRep on-chain vote tracking (for Discord display)
-  drepVote            VoteType?   // DRep's on-chain vote (YES, NO, ABSTAIN)
-  drepRationaleUrl    String?     // Rationale anchor URL
-  drepVoteTxHash      String?     // Transaction hash of the vote
-  drepVotedAt         DateTime?   // When the DRep voted on-chain
-  discordNotifiedAt   DateTime?   // When Discord was last notified of DRep vote
-  postedAt      DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  guild         DiscordGuild @relation(fields: [guildId, drepId], references: [guildId, drepId])
-
-  @@unique([guildId, drepId, proposalId]) // One thread per proposal per guild
-  @@unique([proposalId, drepId])          // Also unique by proposal+drep for sentiment queries
-  @@index([proposalId])
-  @@index([threadId])
-  @@index([drepId])
-}
-
-// Notification Preferences for DReps (web push only for registered DReps)
-
-model NotificationPreference {
-  id                    String   @id @default(uuid())
-
-  // DRep identification
-  drepId                String   @unique  // DRep ID (CIP-129 format)
-  discordUserId         String?           // Discord user ID for DM delivery
-
-  // Channel toggles
-  discordChannelEnabled Boolean  @default(true)   // Forum thread reminders
-  discordDmEnabled      Boolean  @default(false)  // Direct messages
-  inAppToastEnabled     Boolean  @default(true)   // In-app toast notifications
-
-  // Alert threshold configuration (days before expiry)
-  alertDays             Int[]    @default([7, 3, 1])
-
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  // Relations
-  drepRegistration      DrepRegistration @relation(fields: [drepId], references: [drepId])
-
-  @@index([discordUserId])
-  @@index([inAppToastEnabled])
-}
-
-// Deadline Alerts - Tracks sent alerts to prevent duplicates
-
-model DeadlineAlert {
-  id                String             @id @default(uuid())
-
-  // What was alerted
-  proposalId        String             // Cardano governance action ID
-  drepId            String             // DRep ID (CIP-129 format)
-  recipientType     AlertRecipientType // DREP or DELEGATOR
-  recipientId       String             // drepId or verifiedDelegatorId
-
-  // Alert details
-  alertChannel      AlertChannel       // DISCORD_CHANNEL, DISCORD_DM, IN_APP_TOAST
-  daysBeforeExpiry  Int                // e.g., 7, 3, 1
-
-  // Context at time of alert
-  drepHasVoted      Boolean  @default(false)
-  drepVote          VoteType?            // YES, NO, ABSTAIN (null if not voted)
-
-  // Delivery tracking
-  sentAt            DateTime?
-  deliveryStatus    DeliveryStatus @default(PENDING)
-  errorMessage      String?
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@unique([proposalId, drepId, recipientType, recipientId, alertChannel, daysBeforeExpiry])
-  @@index([proposalId])
-  @@index([drepId])
-  @@index([deliveryStatus])
-  @@index([createdAt])
 }

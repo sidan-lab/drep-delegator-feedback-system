@@ -16,6 +16,8 @@ import type {
   NCLDisplayData,
   SentimentResponse,
   SentimentReactionsResponse,
+  DraftVoteResponse,
+  DraftVotesResponse,
 } from "@/types/governance";
 
 /**
@@ -598,5 +600,107 @@ export async function getMyDeadlineAlerts(token: string): Promise<{
       alerts: [],
       count: 0,
     };
+  }
+}
+
+// ============================================================================
+// Draft Vote Intent API Functions
+// ============================================================================
+
+/**
+ * Publish or update a draft vote intent
+ * Allows DReps to share their preliminary voting position before casting on-chain vote
+ * @param proposalId - The proposal ID
+ * @param vote - Vote choice (Yes, No, Abstain)
+ * @param rationaleUrl - Optional rationale URL
+ * @param token - JWT token for authentication
+ */
+export async function publishDraftVote(
+  proposalId: string,
+  vote: "Yes" | "No" | "Abstain",
+  rationaleUrl?: string,
+  token?: string
+): Promise<DraftVoteResponse> {
+  return postApi<DraftVoteResponse>(
+    API_ENDPOINTS.draftVotePublish,
+    {
+      proposalId,
+      vote,
+      rationaleUrl,
+    },
+    token
+  );
+}
+
+/**
+ * Delete a draft vote intent
+ * Removes the draft and allows DRep to start fresh
+ * @param proposalId - The proposal ID
+ * @param token - JWT token for authentication
+ */
+export async function deleteDraftVote(
+  proposalId: string,
+  token?: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(API_ENDPOINTS.draftVoteDelete(proposalId), {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `API Error (${response.status})`);
+  }
+
+  return data;
+}
+
+/**
+ * Get a single draft vote for a proposal
+ * Used by frontend to check if DRep has published a draft
+ * @param proposalId - The proposal ID
+ * @param token - JWT token for authentication
+ */
+export async function getDraftVote(
+  proposalId: string,
+  token?: string
+): Promise<DraftVoteResponse | null> {
+  try {
+    if (!token) {
+      return null;
+    }
+    return await fetchApiWithAuth<DraftVoteResponse>(
+      API_ENDPOINTS.draftVoteGet(proposalId),
+      token
+    );
+  } catch (error) {
+    console.error(`Failed to fetch draft vote for proposal ${proposalId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get all draft votes for the authenticated DRep
+ * Used by DRep dashboard to show all pending drafts
+ * @param token - JWT token for authentication
+ */
+export async function getDraftVotes(
+  token?: string
+): Promise<DraftVotesResponse | null> {
+  try {
+    if (!token) {
+      return null;
+    }
+    return await fetchApiWithAuth<DraftVotesResponse>(
+      API_ENDPOINTS.draftVotesListAll,
+      token
+    );
+  } catch (error) {
+    console.error("Failed to fetch draft votes:", error);
+    return null;
   }
 }

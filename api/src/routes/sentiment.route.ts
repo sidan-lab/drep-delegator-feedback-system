@@ -1082,6 +1082,178 @@ router.get("/pending-drep-vote-notifications", apiKeyAuth, sentimentController.g
 router.post("/mark-drep-vote-notified", apiKeyAuth, sentimentController.markDrepVoteNotified);
 
 // ============================================
+// Draft Vote Intent Endpoints
+// ============================================
+
+/**
+ * @openapi
+ * /sentiment/draft-vote:
+ *   post:
+ *     summary: Publish or update a draft vote intent
+ *     description: Allows DReps to share their preliminary voting position before casting on-chain vote
+ *     tags:
+ *       - Draft Vote Intent
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - proposalId
+ *               - vote
+ *             properties:
+ *               proposalId:
+ *                 type: string
+ *                 description: Cardano governance action ID
+ *               vote:
+ *                 type: string
+ *                 enum: [Yes, No, Abstain]
+ *                 description: Draft vote choice
+ *               rationaleUrl:
+ *                 type: string
+ *                 description: Optional rationale URL
+ *     responses:
+ *       200:
+ *         description: Draft vote published or updated successfully
+ *       400:
+ *         description: Missing required fields or already voted on-chain
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: DRep not registered or not approved
+ */
+router.post("/draft-vote", jwtAuth, sentimentController.publishDraftVote);
+
+/**
+ * @openapi
+ * /sentiment/draft-vote/{proposalId}:
+ *   delete:
+ *     summary: Delete a draft vote intent
+ *     description: Removes the draft and allows DRep to start fresh
+ *     tags:
+ *       - Draft Vote Intent
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: proposalId
+ *         in: path
+ *         required: true
+ *         description: Cardano governance action ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Draft vote deleted successfully
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Draft not found
+ *   get:
+ *     summary: Get a single draft vote for a proposal
+ *     description: Used by frontend to check if DRep has published a draft
+ *     tags:
+ *       - Draft Vote Intent
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: proposalId
+ *         in: path
+ *         required: true
+ *         description: Cardano governance action ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Draft vote retrieved or not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 hasDraft:
+ *                   type: boolean
+ *                 draft:
+ *                   type: object
+ *                   properties:
+ *                     proposalId:
+ *                       type: string
+ *                     vote:
+ *                       type: string
+ *                     rationaleUrl:
+ *                       type: string
+ *                     publishedAt:
+ *                       type: string
+ *                     sentiment:
+ *                       type: object
+ *                       properties:
+ *                         yesCount:
+ *                           type: integer
+ *                         noCount:
+ *                           type: integer
+ *                         abstainCount:
+ *                           type: integer
+ *                         commentCount:
+ *                           type: integer
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Unauthorized
+ */
+router.delete("/draft-vote/:proposalId", jwtAuth, sentimentController.deleteDraftVote);
+router.get("/draft-vote/:proposalId", jwtAuth, sentimentController.getDraftVote);
+
+/**
+ * @openapi
+ * /sentiment/draft-votes:
+ *   get:
+ *     summary: Get all draft votes for the authenticated DRep
+ *     description: Used by DRep dashboard to show all pending drafts
+ *     tags:
+ *       - Draft Vote Intent
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Draft votes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 drafts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       proposalId:
+ *                         type: string
+ *                       vote:
+ *                         type: string
+ *                       rationaleUrl:
+ *                         type: string
+ *                       publishedAt:
+ *                         type: string
+ *                       sentiment:
+ *                         type: object
+ *                 count:
+ *                   type: integer
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Unauthorized
+ */
+router.get("/draft-votes", jwtAuth, sentimentController.getDraftVotes);
+
+// ============================================
 // Dynamic Proposal Routes (MUST BE LAST)
 // These routes use /:proposal_id which matches ANY path.
 // They must come after all specific routes to avoid incorrect matching.

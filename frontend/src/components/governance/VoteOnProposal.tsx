@@ -7,6 +7,7 @@ import { loadGovernanceActionDetail } from "@/store/governanceSlice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConnectWalletButton } from "@/components/wallet";
+import { DraftVoteBanner } from "./DraftVoteBanner";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -27,6 +29,11 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
+import {
+  publishDraftVote,
+  getDraftVote,
+} from "@/services/api";
+import type { DraftVoteIntent } from "@/types/governance";
 
 type VoteChoice = "Yes" | "No" | "Abstain";
 
@@ -78,6 +85,18 @@ export function VoteOnProposal({
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Draft mode state
+  const [draftMode, setDraftMode] = useState(false);
+  const [draftState, setDraftState] = useState<{
+    hasDraft: boolean;
+    draft: DraftVoteIntent | null;
+    isLoading: boolean;
+  }>({
+    hasDraft: false,
+    draft: null,
+    isLoading: false,
+  });
 
   // Get current votes from Redux store to check if our vote has synced
   const selectedAction = useSelector(
@@ -204,6 +223,12 @@ export function VoteOnProposal({
           console.log("[Vote] Discord notification response status:", response.status);
           if (response.ok) {
             console.log("[Vote] Discord notification sent successfully (after sync)");
+            // Clear draft state since the on-chain vote has converted draft to final
+            setDraftState({
+              hasDraft: false,
+              draft: null,
+              isLoading: false,
+            });
           } else {
             const errorText = await response.text();
             console.warn("[Vote] Discord notification failed:", errorText);
@@ -229,11 +254,111 @@ export function VoteOnProposal({
     };
   }, []);
 
+  // Fetch draft vote on component mount
+  useEffect(() => {
+    const fetchDraft = async () => {
+      if (!connected || !proposalId) return;
+
+      setDraftState((prev) => ({ ...prev, isLoading: true }));
+      try {
+        const token = localStorage.getItem("drep_auth_token");
+        if (!token) {
+          setDraftState({ hasDraft: false, draft: null, isLoading: false });
+          return;
+        }
+
+        const response = await getDraftVote(proposalId, token);
+        if (response && response.hasDraft && response.draft) {
+          setDraftState({
+            hasDraft: true,
+            draft: response.draft,
+            isLoading: false,
+          });
+        } else {
+          setDraftState({ hasDraft: false, draft: null, isLoading: false });
+        }
+      } catch (error) {
+        console.error("Failed to fetch draft vote:", error);
+        setDraftState({ hasDraft: false, draft: null, isLoading: false });
+      }
+    };
+
+    fetchDraft();
+  }, [connected, proposalId]);
+
   const handleVoteClick = (vote: VoteChoice) => {
     if (!connected) return;
     setSelectedVote(vote);
     setIsModalOpen(true);
     setVoteState({ isSubmitting: false, isSuccess: false, error: null, txHash: null });
+  };
+
+  // Draft mode handlers
+  const handlePublishDraft = async () => {
+    if (!selectedVote) return;
+
+    setVoteState({ isSubmitting: true, isSuccess: false, error: null, txHash: null });
+
+    try {
+      const token = localStorage.getItem("drep_auth_token");
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const response = await publishDraftVote(
+        proposalId,
+        selectedVote,
+        anchorUrl.trim() || undefined,
+        token
+      );
+
+      if (response.success) {
+        setVoteState({
+          isSubmitting: false,
+          isSuccess: true,
+          error: null,
+          txHash: null,
+        });
+
+        // Update draft state
+        if (response.draft) {
+          setDraftState({
+            hasDraft: true,
+            draft: response.draft,
+            isLoading: false,
+          });
+        }
+
+        // Close modal after brief delay
+        setTimeout(() => {
+          closeModal();
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Failed to publish draft:", error);
+      setVoteState({
+        isSubmitting: false,
+        isSuccess: false,
+        error: error instanceof Error ? error.message : "Failed to publish draft",
+        txHash: null,
+      });
+    }
+  };
+
+  const handleFinalizeDraft = () => {
+    if (!draftState.draft) return;
+
+    // Pre-fill the vote modal with draft data
+    const draftVote = draftState.draft.vote;
+    const mappedVote: VoteChoice =
+      draftVote === "YES" ? "Yes" : draftVote === "NO" ? "No" : "Abstain";
+
+    setSelectedVote(mappedVote);
+    if (draftState.draft.rationaleUrl) {
+      setAnchorUrl(draftState.draft.rationaleUrl);
+    }
+    setDraftMode(false); // Switch to final vote mode
+    setIsModalOpen(true);
   };
 
   const submitVote = useCallback(async () => {
@@ -402,6 +527,16 @@ export function VoteOnProposal({
 
   return (
     <>
+      {/* Draft Vote Banner - show if draft exists */}
+      {draftState.hasDraft && draftState.draft && (
+        <DraftVoteBanner
+          vote={draftState.draft.vote}
+          publishedAt={draftState.draft.publishedAt}
+          rationaleUrl={draftState.draft.rationaleUrl}
+          onFinalize={handleFinalizeDraft}
+        />
+      )}
+
       <Card className="p-6">
         <h3 className="font-semibold mb-4">Cast Your Vote</h3>
 
@@ -414,6 +549,25 @@ export function VoteOnProposal({
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Draft mode toggle */}
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="draft-mode"
+                  checked={draftMode}
+                  onCheckedChange={setDraftMode}
+                />
+                <Label htmlFor="draft-mode" className="text-sm cursor-pointer">
+                  Draft Mode
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {draftMode
+                  ? "Share intent without on-chain transaction"
+                  : "Submit final vote on-chain"}
+              </p>
+            </div>
+
             <p className="text-sm text-muted-foreground">
               Select your vote choice:
             </p>
@@ -444,7 +598,9 @@ export function VoteOnProposal({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Your vote will be submitted on-chain as a DRep vote.
+              {draftMode
+                ? "Your draft vote intent will be visible to delegators but not recorded on-chain."
+                : "Your vote will be submitted on-chain as a DRep vote."}
             </p>
           </div>
         )}
@@ -463,30 +619,42 @@ export function VoteOnProposal({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Your Vote</DialogTitle>
+            <DialogTitle>
+              {draftMode ? "Publish Draft Vote Intent" : "Confirm Your Vote"}
+            </DialogTitle>
             <DialogDescription>
-              You are about to vote <strong>{selectedVote}</strong> on this
-              governance action.
+              {draftMode ? (
+                <>
+                  You are about to publish a <strong>draft vote intent</strong>{" "}
+                  of <strong>{selectedVote}</strong>. This will not be recorded
+                  on-chain, but delegators will see your preliminary position.
+                </>
+              ) : (
+                <>
+                  You are about to vote <strong>{selectedVote}</strong> on this
+                  governance action.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
           {voteState.isSuccess ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center py-6">
-                {syncState.isSynced ? (
-                  <CheckCircle className="h-16 w-16 text-success" />
-                ) : (
-                  <CheckCircle className="h-16 w-16 text-success" />
-                )}
+                <CheckCircle className="h-16 w-16 text-success" />
               </div>
               <div className="text-center space-y-2">
                 <p className="font-semibold text-success">
-                  Vote Submitted Successfully!
+                  {draftMode
+                    ? "Draft Published Successfully!"
+                    : "Vote Submitted Successfully!"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Your vote has been submitted to the blockchain.
+                  {draftMode
+                    ? "Your draft vote intent is now visible to delegators."
+                    : "Your vote has been submitted to the blockchain."}
                 </p>
-                {voteState.txHash && (
+                {voteState.txHash && !draftMode && (
                   <a
                     href={`https://adastat.net/transactions/${voteState.txHash}`}
                     target="_blank"
@@ -499,8 +667,9 @@ export function VoteOnProposal({
                 )}
               </div>
 
-              {/* Sync Status Indicator */}
-              <div className="bg-secondary/50 p-4 rounded-lg">
+              {/* Sync Status Indicator - only show for final votes */}
+              {!draftMode && (
+                <div className="bg-secondary/50 p-4 rounded-lg">
                 {syncState.isPolling ? (
                   <div className="flex items-center justify-center gap-2 text-sm">
                     <RefreshCw className="h-4 w-4 animate-spin text-primary" />
@@ -524,10 +693,15 @@ export function VoteOnProposal({
                     <span>Preparing to sync...</span>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
 
               <Button className="w-full" onClick={closeModal}>
-                {syncState.isSynced ? "View Updated Records" : "Close"}
+                {draftMode
+                  ? "Close"
+                  : syncState.isSynced
+                    ? "View Updated Records"
+                    : "Close"}
               </Button>
             </div>
           ) : (
@@ -587,14 +761,16 @@ export function VoteOnProposal({
                 </Button>
                 <Button
                   className="flex-1"
-                  onClick={submitVote}
+                  onClick={draftMode ? handlePublishDraft : submitVote}
                   disabled={voteState.isSubmitting}
                 >
                   {voteState.isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Submitting...
+                      {draftMode ? "Publishing..." : "Submitting..."}
                     </>
+                  ) : draftMode ? (
+                    "Publish Draft"
                   ) : (
                     "Confirm Vote"
                   )}
@@ -602,8 +778,9 @@ export function VoteOnProposal({
               </div>
 
               <p className="text-xs text-muted-foreground text-center">
-                This will create an on-chain transaction. You will be asked to
-                sign with your wallet.
+                {draftMode
+                  ? "This will not create an on-chain transaction. Your draft will be visible to delegators for feedback."
+                  : "This will create an on-chain transaction. You will be asked to sign with your wallet."}
               </p>
             </div>
           )}
