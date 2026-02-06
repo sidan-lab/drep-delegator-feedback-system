@@ -2,7 +2,7 @@ name: Deploy Discord Bot to GCP Compute Engine
 
 on:
   push:
-    branches: [milestone-4]
+    branches: [main]
     paths:
       - "discord-bot/**"
       - ".github/workflows/deploy-discord-bot-gcp.yml"
