@@ -6,3 +6,4 @@ export * from "./verifyDelegator";
 export * from "./proposalPost";
 export * from "./drepRegistration";
 export * from "./notifyDrepVote";
+export * from "./draftVote";

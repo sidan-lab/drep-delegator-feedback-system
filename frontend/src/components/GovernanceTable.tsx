@@ -50,6 +50,18 @@ function formatProposalId(proposalId: string): string {
 }
 
 /**
+ * Format an ISO date string to display format: "YYYY-MM-DD UTC"
+ * Example: "2026-02-18 UTC"
+ */
+function formatEpochDate(isoDate: string): string {
+  const date = new Date(isoDate);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day} UTC`;
+}
+
+/**
  * Legacy governance actions with special voting rules (before gov_action1js2s9v92zpxg2rge0y3jt9zy626he2m67x9kx9phw4r942kvsn6sqfym0d7)
  * These have hardcoded exceptions that don't follow the standard type-based rules
  */
@@ -434,8 +446,14 @@ export function GovernanceTable() {
                 {/* Footer */}
                 <div className="mt-4 pt-4 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
                   <div className="text-xs text-muted-foreground space-x-4">
-                    <span>Submission: Epoch {action.submissionEpoch}</span>
-                    <span>Expiry: Epoch {action.expiryEpoch}</span>
+                    <span>
+                      Submission: Epoch {action.submissionEpoch}
+                      {action.submissionDate && ` (${formatEpochDate(action.submissionDate)})`}
+                    </span>
+                    <span>
+                      Expiry: Epoch {action.expiryEpoch}
+                      {action.expiryDate && ` (${formatEpochDate(action.expiryDate)})`}
+                    </span>
                   </div>
 
                   {/* Voting buttons for active proposals */}

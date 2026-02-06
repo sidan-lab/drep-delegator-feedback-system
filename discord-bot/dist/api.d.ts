@@ -156,6 +156,8 @@ declare class ApiClient {
             drepRationaleUrl: string | null;
             drepVoteTxHash: string | null;
             drepVotedAt: string | null;
+            isDraft: boolean;
+            draftPublishedAt: string | null;
         }>;
         count: number;
     }>;
@@ -163,6 +165,51 @@ declare class ApiClient {
      * Mark a DRep vote notification as sent to Discord
      */
     markDrepVoteNotified(postId: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    /**
+     * Get pending deadline alerts for Discord
+     * Returns alerts that need to be sent via Discord channel or DM
+     */
+    getPendingDeadlineAlerts(drepId?: string): Promise<{
+        success: boolean;
+        alerts: Array<{
+            id: string;
+            proposalId: string;
+            drepId: string;
+            recipientType: "DREP" | "DELEGATOR";
+            recipientId: string;
+            alertChannel: "DISCORD_CHANNEL" | "DISCORD_DM";
+            daysBeforeExpiry: number;
+            drepHasVoted: boolean;
+            drepVote: "YES" | "NO" | "ABSTAIN" | null;
+            proposal: {
+                proposalId: string;
+                title: string;
+                governanceActionType: string | null;
+                expirationEpoch: number | null;
+                status: string;
+            } | null;
+            drepRegistration: {
+                drepId: string;
+                drepName: string | null;
+                discordGuildId: string | null;
+            } | null;
+            guildPost: {
+                threadId: string;
+                guildId: string;
+            } | null;
+            notificationPreference: {
+                discordUserId: string | null;
+            } | null;
+        }>;
+        count: number;
+    }>;
+    /**
+     * Mark a deadline alert as sent or failed
+     */
+    markAlertSent(alertId: string, status: "SENT" | "FAILED", errorMessage?: string): Promise<{
         success: boolean;
         message: string;
     }>;

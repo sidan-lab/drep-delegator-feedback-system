@@ -78,9 +78,12 @@ export const notifyDrepVote = async (req: Request, res: Response) => {
     }
 
     // Update GuildProposalPost with DRep vote info and clear discordNotifiedAt
+    // If there was a draft, convert it to final vote
     await prisma.guildProposalPost.update({
       where: { id: proposalPost.id },
       data: {
+        isDraft: false, // Mark as final vote (converts draft to final)
+        draftPublishedAt: null, // Clear draft timestamp
         drepVote: voteUpper,
         drepRationaleUrl: rationaleUrl || null,
         drepVoteTxHash: txHash,
@@ -136,6 +139,8 @@ export const getPendingDrepVoteNotifications = async (req: Request, res: Respons
         drepRationaleUrl: true,
         drepVoteTxHash: true,
         drepVotedAt: true,
+        isDraft: true, // Include draft status for Discord bot
+        draftPublishedAt: true,
       },
       orderBy: { drepVotedAt: "asc" },
     });

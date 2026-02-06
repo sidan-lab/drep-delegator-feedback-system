@@ -28,6 +28,14 @@ export const API_ENDPOINTS = {
   sentimentComments: (proposalId: string, drepId: string) =>
     `/api/sentiment/${encodeURIComponent(proposalId)}/comments?drepId=${encodeURIComponent(drepId)}`,
 
+  // Draft vote intent endpoints (JWT-authenticated DRep endpoints)
+  draftVotePublish: "/api/sentiment/draft-vote",
+  draftVoteGet: (proposalId: string) =>
+    `/api/sentiment/draft-vote/${encodeURIComponent(proposalId)}`,
+  draftVoteDelete: (proposalId: string) =>
+    `/api/sentiment/draft-vote/${encodeURIComponent(proposalId)}`,
+  draftVotesListAll: "/api/sentiment/draft-votes",
+
   // Auth endpoints (JWT-based authentication)
   authSignIn: "/api/auth/signin",
   authMe: "/api/auth/me",
@@ -44,4 +52,8 @@ export const API_ENDPOINTS = {
   adminListDreps: "/api/admin/drep",
   adminApproveDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/approve`,
   adminRejectDrep: (drepId: string) => `/api/admin/drep/${encodeURIComponent(drepId)}/reject`,
+
+  // Notification preference endpoints (JWT-authenticated)
+  notificationPreferences: "/api/notification/preferences",
+  myAlerts: "/api/notification/alerts/my-pending",
 } as const;

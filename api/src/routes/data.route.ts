@@ -9,6 +9,7 @@ import {
 } from "../controllers/data/ingestVoters";
 import { postTriggerSync } from "../controllers/data/triggerSync";
 import { postTriggerVoterSync } from "../controllers/data/triggerVoterSync";
+import { postTriggerDeadlineAlerts } from "../controllers/data/triggerDeadlineAlerts";
 
 const router = express.Router();
 
@@ -206,5 +207,21 @@ router.post("/trigger-sync", postTriggerSync);
  *         description: Sync failed
  */
 router.post("/trigger-voter-sync", postTriggerVoterSync);
+
+/**
+ * @openapi
+ * /data/trigger-deadline-alerts:
+ *   post:
+ *     summary: Manually trigger deadline alerts check
+ *     description: Triggers a check for proposals approaching voting deadlines and creates alert records for DReps. Used for manual testing and by Cloud Scheduler cron jobs.
+ *     tags:
+ *       - Data Ingestion
+ *     responses:
+ *       200:
+ *         description: Deadline alerts check completed successfully
+ *       500:
+ *         description: Deadline alerts check failed
+ */
+router.post("/trigger-deadline-alerts", postTriggerDeadlineAlerts);
 
 export default router;

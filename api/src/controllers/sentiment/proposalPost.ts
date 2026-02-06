@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
 import { validateGuildId } from "../../middleware/auth.middleware";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * Create a record of a proposal posted to a Discord guild
@@ -124,7 +125,8 @@ export const createProposalPost = async (req: Request, res: Response) => {
  */
 export const getProposalPosts = async (req: Request, res: Response) => {
   try {
-    const { guildId, drepId } = req.params;
+    const guildId = getStringParam(req.params.guildId);
+    const drepId = getStringParam(req.params.drepId);
 
     if (!guildId || !drepId) {
       return res.status(400).json({

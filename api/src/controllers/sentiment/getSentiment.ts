@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
 import { normalizeToCip129 } from "../../libs/drepIdConverter";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * Resolve proposal identifier to the canonical proposalId
@@ -34,7 +35,7 @@ async function resolveProposalId(inputId: string): Promise<string> {
  */
 export const getSentiment = async (req: Request, res: Response) => {
   try {
-    const { proposal_id } = req.params;
+    const proposal_id = getStringParam(req.params.proposal_id);
     const { drepId } = req.query;
 
     if (!proposal_id) {
@@ -116,7 +117,7 @@ export const getSentiment = async (req: Request, res: Response) => {
  */
 export const getComments = async (req: Request, res: Response) => {
   try {
-    const { proposal_id } = req.params;
+    const proposal_id = getStringParam(req.params.proposal_id);
     const { drepId, limit = "50", offset = "0" } = req.query;
 
     if (!proposal_id) {
@@ -191,7 +192,7 @@ export const getComments = async (req: Request, res: Response) => {
  */
 export const getReactions = async (req: Request, res: Response) => {
   try {
-    const { proposal_id } = req.params;
+    const proposal_id = getStringParam(req.params.proposal_id);
     const { drepId, sentiment, limit = "100", offset = "0" } = req.query;
 
     if (!proposal_id) {

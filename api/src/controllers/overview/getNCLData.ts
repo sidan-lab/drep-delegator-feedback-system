@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../../services";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * NCL Data Response for a single year
@@ -46,7 +47,7 @@ export const getNCLData = async (_req: Request, res: Response) => {
  */
 export const getNCLDataByYear = async (req: Request, res: Response) => {
   try {
-    const year = parseInt(req.params.year, 10);
+    const year = parseInt(getStringParam(req.params.year), 10);
 
     if (isNaN(year)) {
       res.status(400).json({

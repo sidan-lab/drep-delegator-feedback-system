@@ -7,6 +7,17 @@ import Head from "next/head";
 import { MeshProviderWrapper } from "@/components/providers/MeshProviderWrapper";
 import { AuthProviderWrapper } from "@/components/providers/AuthProviderWrapper";
 import { Header } from "@/components/layout";
+import { Toaster } from "sonner";
+import { useDeadlineAlerts } from "@/hooks/useDeadlineAlerts";
+
+/**
+ * DeadlineAlertsProvider
+ * Component that initializes deadline alert polling when user is authenticated
+ */
+function DeadlineAlertsProvider() {
+  useDeadlineAlerts();
+  return null;
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
@@ -18,6 +29,14 @@ export default function App({ Component, pageProps }: AppProps) {
           </Head>
           <Header />
           <Component {...pageProps} />
+          <DeadlineAlertsProvider />
+          <Toaster
+            position="top-right"
+            closeButton
+            richColors
+            expand={false}
+            duration={Infinity}
+          />
         </Provider>
       </AuthProviderWrapper>
     </MeshProviderWrapper>

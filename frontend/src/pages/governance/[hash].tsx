@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Link from "next/link";
@@ -53,6 +53,68 @@ function parseProposalHash(hash: string): {
   }
 
   return null;
+}
+
+/**
+ * Format an ISO date string to display format: "YYYY-MM-DD UTC"
+ * Example: "2026-02-18 UTC"
+ */
+function formatEpochDate(isoDate: string): string {
+  const date = new Date(isoDate);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day} UTC`;
+}
+
+/**
+ * Calculate time remaining until proposal expiry
+ * CRITICAL: Uses same logic as Discord bot to ensure consistency
+ *
+ * Discord bot formula (api/src/jobs/deadline-alerts.job.ts):
+ * daysRemaining = Math.ceil(secondsRemaining / 86400)
+ */
+function calculateTimeRemaining(submissionDate?: string, expiryDate?: string): {
+  daysRemaining: number;
+  progressPercent: number;
+  isExpired: boolean;
+  urgencyLevel: "urgent" | "soon" | "normal";
+} {
+  // Default fallback
+  if (!submissionDate || !expiryDate) {
+    return { daysRemaining: 0, progressPercent: 0, isExpired: true, urgencyLevel: "normal" };
+  }
+
+  const now = Date.now();
+  const submissionTime = new Date(submissionDate).getTime();
+  const expiryTime = new Date(expiryDate).getTime();
+
+  // Calculate seconds remaining
+  const secondsRemaining = Math.max(0, (expiryTime - now) / 1000);
+
+  // CRITICAL: Use Math.ceil to match Discord bot calculation
+  // This ensures "14 days" on Discord === "14 days" on frontend
+  const daysRemaining = Math.ceil(secondsRemaining / 86400); // 86400 = seconds per day
+
+  // Check if expired
+  const isExpired = secondsRemaining <= 0;
+
+  // Calculate progress percentage (0-100)
+  const totalDuration = expiryTime - submissionTime;
+  const elapsed = now - submissionTime;
+  const progressPercent = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+
+  // Determine urgency level (matching Discord bot thresholds)
+  let urgencyLevel: "urgent" | "soon" | "normal";
+  if (daysRemaining <= 1) {
+    urgencyLevel = "urgent"; // RED
+  } else if (daysRemaining <= 3) {
+    urgencyLevel = "soon"; // ORANGE
+  } else {
+    urgencyLevel = "normal"; // YELLOW
+  }
+
+  return { daysRemaining, progressPercent, isExpired, urgencyLevel };
 }
 
 /**
@@ -177,6 +239,16 @@ export default function GovernanceDetail() {
   // This prevents unmounting VoteOnProposal if an API call fails during polling
   const showErrorState = detailError && !selectedAction;
 
+  // Calculate time remaining ONCE on page load (efficient, no re-renders)
+  const timeInfo = useMemo(
+    () =>
+      calculateTimeRemaining(
+        selectedAction?.submissionDate,
+        selectedAction?.expiryDate
+      ),
+    [selectedAction?.submissionDate, selectedAction?.expiryDate]
+  );
+
   // Loading state - only shown on initial load
   if (showLoadingState) {
     return (
@@ -297,9 +369,23 @@ export default function GovernanceDetail() {
               {selectedAction.proposalId || selectedAction.hash}
             </code>
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-4">
-              <span>Submission: Epoch {selectedAction.submissionEpoch}</span>
+              <span>
+                Submission: Epoch {selectedAction.submissionEpoch}
+                {selectedAction.submissionDate && (
+                  <span className="text-muted-foreground/70">
+                    {" "}({formatEpochDate(selectedAction.submissionDate)})
+                  </span>
+                )}
+              </span>
               <span>•</span>
-              <span>Expiry: Epoch {selectedAction.expiryEpoch}</span>
+              <span>
+                Expiry: Epoch {selectedAction.expiryEpoch}
+                {selectedAction.expiryDate && (
+                  <span className="text-muted-foreground/70">
+                    {" "}({formatEpochDate(selectedAction.expiryDate)})
+                  </span>
+                )}
+              </span>
             </div>
           </div>
 
@@ -341,6 +427,58 @@ export default function GovernanceDetail() {
                   status={selectedAction.status}
                   proposalId={selectedAction.proposalId}
                 />
+              )}
+
+              {/* Time Until Expiry Card - Only show for Active proposals */}
+              {selectedAction.status === "Active" && selectedAction.expiryDate && (
+                <Card className="p-6">
+                  <div className="space-y-3">
+                    {/* Header with time remaining */}
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold text-muted-foreground">
+                        Time Until Expiry
+                      </h3>
+                      <span
+                        className={`text-xl font-bold ${
+                          timeInfo.urgencyLevel === "urgent"
+                            ? "text-destructive"
+                            : timeInfo.urgencyLevel === "soon"
+                            ? "text-orange-500"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {timeInfo.isExpired
+                          ? "Expired"
+                          : `${timeInfo.daysRemaining} day${
+                              timeInfo.daysRemaining === 1 ? "" : "s"
+                            }`}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="space-y-1">
+                      <Progress value={timeInfo.progressPercent} className="h-3" />
+                      <p className="text-xs text-muted-foreground text-center">
+                        {timeInfo.isExpired
+                          ? "Voting period has ended"
+                          : "Voting period progress"}
+                      </p>
+                    </div>
+
+                    {/* Urgency indicator */}
+                    {!timeInfo.isExpired && timeInfo.urgencyLevel !== "normal" && (
+                      <div
+                        className={`text-sm font-medium ${
+                          timeInfo.urgencyLevel === "urgent"
+                            ? "text-destructive"
+                            : "text-orange-500"
+                        }`}
+                      >
+                        {timeInfo.urgencyLevel === "urgent" ? "⚠️ URGENT" : "⏰ Soon"}
+                      </div>
+                    )}
+                  </div>
+                </Card>
               )}
 
               {/* Constitutionality Card */}

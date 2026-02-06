@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { prisma } from "../../services";
 import { generateApiKey } from "../../libs/apiKey";
 import { verifyDrepOwnership } from "../../libs/drepVerification";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * Register a new DRep for sentiment collection
@@ -134,7 +135,7 @@ export const registerDrep = async (req: Request, res: Response) => {
  */
 export const approveDrep = async (req: Request, res: Response) => {
   try {
-    const { drepId } = req.params;
+    const drepId = getStringParam(req.params.drepId);
     const { rationale } = req.body;
 
     if (!drepId) {
@@ -213,7 +214,7 @@ export const approveDrep = async (req: Request, res: Response) => {
  */
 export const rejectDrep = async (req: Request, res: Response) => {
   try {
-    const { drepId } = req.params;
+    const drepId = getStringParam(req.params.drepId);
     const { rationale } = req.body;
 
     if (!drepId) {
@@ -275,7 +276,7 @@ export const rejectDrep = async (req: Request, res: Response) => {
  */
 export const regenerateApiKey = async (req: Request, res: Response) => {
   try {
-    const { drepId } = req.params;
+    const drepId = getStringParam(req.params.drepId);
 
     if (!drepId) {
       return res.status(400).json({
@@ -339,7 +340,7 @@ export const regenerateApiKey = async (req: Request, res: Response) => {
  */
 export const getDrepStatus = async (req: Request, res: Response) => {
   try {
-    const { drepId } = req.params;
+    const drepId = getStringParam(req.params.drepId);
 
     if (!drepId) {
       return res.status(400).json({

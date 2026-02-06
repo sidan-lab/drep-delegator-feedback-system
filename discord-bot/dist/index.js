@@ -10,6 +10,7 @@ const messageHandler_1 = require("./events/messageHandler");
 const buttonHandler_1 = require("./events/buttonHandler");
 const proposalSync_1 = require("./scheduled/proposalSync");
 const drepVoteNotifier_1 = require("./scheduled/drepVoteNotifier");
+const deadlineReminder_1 = require("./scheduled/deadlineReminder");
 // Validate configuration before starting
 (0, config_1.validateConfig)();
 // Create Discord client with required intents
@@ -18,6 +19,8 @@ const client = new discord_js_1.Client({
         discord_js_1.GatewayIntentBits.Guilds,
         discord_js_1.GatewayIntentBits.GuildMessages,
         discord_js_1.GatewayIntentBits.MessageContent,
+        discord_js_1.GatewayIntentBits.DirectMessages, // For sending DM notifications
+        discord_js_1.GatewayIntentBits.GuildMembers, // Required to fetch user info for DMs
     ],
     partials: [
         discord_js_1.Partials.Message,
@@ -62,6 +65,8 @@ client.once(discord_js_1.Events.ClientReady, async (readyClient) => {
     }
     // Initialize DRep vote notifier (polls for pending notifications)
     (0, drepVoteNotifier_1.initDrepVoteNotifier)(client);
+    // Initialize deadline reminder (polls for pending deadline alerts)
+    (0, deadlineReminder_1.initDeadlineReminder)(client);
 });
 // Event: Interaction (slash commands and buttons)
 client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {

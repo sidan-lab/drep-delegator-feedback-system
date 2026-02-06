@@ -76,6 +76,8 @@ export interface GovernanceAction {
   // Epoch information
   submissionEpoch: number;
   expiryEpoch: number;
+  submissionDate?: string; // ISO 8601 date string
+  expiryDate?: string; // ISO 8601 date string
 
   // Raw API vote info objects (for advanced use)
   drep?: GovernanceActionVoteInfo;
@@ -261,4 +263,39 @@ export interface SentimentCommentsResponse {
     limit: number;
     offset: number;
   };
+}
+
+/**
+ * Draft Vote Intent - DRep's preliminary voting position before on-chain vote
+ * Allows delegators to provide feedback before the decision is finalized
+ */
+export interface DraftVoteIntent {
+  proposalId: string;
+  vote: "YES" | "NO" | "ABSTAIN";
+  rationaleUrl?: string;
+  publishedAt: string;
+  sentiment?: {
+    yesCount: number;
+    noCount: number;
+    abstainCount: number;
+    commentCount: number;
+  };
+}
+
+/**
+ * API response for getting a single draft vote
+ */
+export interface DraftVoteResponse {
+  success: boolean;
+  hasDraft: boolean;
+  draft: DraftVoteIntent | null;
+}
+
+/**
+ * API response for getting all draft votes for a DRep
+ */
+export interface DraftVotesResponse {
+  success: boolean;
+  drafts: DraftVoteIntent[];
+  count: number;
 }

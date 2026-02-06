@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { ingestVoteByTxHash } from "../../services/ingestion/vote.service";
+import { getStringParam } from "../../utils/requestHelpers";
 
 /**
  * POST /data/vote/:tx_hash
@@ -15,7 +16,7 @@ import { ingestVoteByTxHash } from "../../services/ingestion/vote.service";
  */
 export const postIngestVote = async (req: Request, res: Response) => {
   try {
-    const { tx_hash } = req.params;
+    const tx_hash = getStringParam(req.params.tx_hash);
 
     if (!tx_hash) {
       return res.status(400).json({
@@ -43,7 +44,7 @@ export const postIngestVote = async (req: Request, res: Response) => {
     res.status(500).json({
       error: "Failed to ingest vote",
       message: errorMessage,
-      tx_hash: req.params.tx_hash,
+      tx_hash: getStringParam(req.params.tx_hash),
     });
   }
 };

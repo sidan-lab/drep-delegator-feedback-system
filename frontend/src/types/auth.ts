@@ -158,3 +158,35 @@ export interface AdminRejectDrepResponse {
     rationale: string;
   };
 }
+
+// Notification preference types
+export interface NotificationPreference {
+  id: string;
+  drepId: string;
+  discordUserId: string | null;
+  discordChannelEnabled: boolean;
+  discordDmEnabled: boolean;
+  inAppToastEnabled: boolean;
+  alertDays: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationPreferenceInput {
+  discordUserId?: string;
+  discordChannelEnabled?: boolean;
+  discordDmEnabled?: boolean;
+  inAppToastEnabled?: boolean;
+  alertDays?: number[];
+}
+
+export interface NotificationPreferenceResponse {
+  success: boolean;
+  message?: string;
+  data: NotificationPreference;
+}
+
+export interface PushSubscriptionResponse {
+  success: boolean;
+  message: string;
+}
