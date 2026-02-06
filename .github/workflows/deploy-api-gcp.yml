@@ -2,7 +2,7 @@ name: Deploy API to GCP Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [milestone-4]
     paths:
       - "api/**"
       - ".github/workflows/deploy-api-gcp.yml"
@@ -111,6 +111,19 @@ jobs:
             --time-zone="UTC" \
             --description="Sync DRep and SPO voting power from Koios API every 24 hours"
 
+      - name: Create/Update Deadline Alerts Scheduler Job
+        run: |
+          gcloud scheduler jobs delete drep-deadline-alerts --location=${{ env.REGION }} --quiet || true
+          gcloud scheduler jobs create http drep-deadline-alerts \
+            --location=${{ env.REGION }} \
+            --schedule="*/1 * * * *" \
+            --uri="${{ steps.url.outputs.url }}/data/trigger-deadline-alerts" \
+            --http-method=POST \
+            --headers="X-API-Key=${{ secrets.SERVER_API_KEY }}" \
+            --attempt-deadline=600s \
+            --time-zone="UTC" \
+            --description="Check for proposals approaching voting deadlines and create alert records every minute"
+
       - name: Deployment Summary
         run: |
           echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
@@ -125,3 +138,4 @@ jobs:
           echo "|-----|----------|----------|" >> $GITHUB_STEP_SUMMARY
           echo "| drep-proposal-sync | \`*/15 * * * *\` | POST /data/trigger-sync |" >> $GITHUB_STEP_SUMMARY
           echo "| drep-voter-power-sync | \`0 0 * * *\` | POST /data/trigger-voter-sync |" >> $GITHUB_STEP_SUMMARY
+          echo "| drep-deadline-alerts | \`*/1 * * * *\` | POST /data/trigger-deadline-alerts |" >> $GITHUB_STEP_SUMMARY
